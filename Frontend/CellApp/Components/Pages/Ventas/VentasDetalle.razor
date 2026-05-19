@@ -1,0 +1,317 @@
+@page "/ventas/{Id:int}"
+@rendermode InteractiveServer
+@inject VentaApiService VentaSvc
+@inject EmpresaApiService EmpresaSvc
+@inject NavigationManager Nav
+@inject NotificacionService Notif
+@inject IConfiguration Config
+
+<PageTitle>Detalle de venta — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-receipt me-2 text-primary"></i>Detalle de venta</h4>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm"
+                @onclick='() => VerPdf(VentaPdfUrl(), "Ticket venta — " + (_venta?.NumeroVenta ?? ""))'>
+            <i class="fas fa-file-pdf me-1"></i>PDF
+        </button>
+        <WhatsAppBtn Telefono="@(_venta?.ClienteTelefono ?? string.Empty)"
+                     Mensaje="@WaMsgVenta()" />
+        <EnviarEmailBtn EmailPorDefecto="@(_venta?.ClienteEmail ?? string.Empty)"
+                        Enviando="_enviandoEmail"
+                        OnEnviar="EnviarTicket" />
+        <a href="/ventas" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Volver
+        </a>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando && _venta != null)
+{
+    <div class="row g-4">
+        <!-- Izquierda: info + líneas -->
+        <div class="col-lg-8">
+            <!-- Datos generales -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-info-circle me-2"></i>Información de la venta</span>
+                    <span class="badge bg-@BadgeColor(_venta.Estado) fs-6">@_venta.Estado.ToUpper()</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Número</small>
+                            <strong>@_venta.NumeroVenta</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Fecha</small>
+                            <strong>@_venta.Fecha.ToString("dd/MM/yyyy HH:mm")</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Método de pago</small>
+                            <strong>@(_venta.MetodoPago ?? "—")</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Factura</small>
+                            @if (!string.IsNullOrEmpty(_venta.NumeroFactura))
+                            {
+                                <strong class="text-success">@_venta.NumeroFactura</strong>
+                            }
+                            else
+                            {
+                                <span class="text-muted">Pendiente</span>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Cliente</small>
+                            <strong>@_venta.ClienteNombreCompleto</strong>
+                            @if (!string.IsNullOrEmpty(_venta.ClienteEmail))
+                            {
+                                <div class="text-muted small">@_venta.ClienteEmail</div>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">NIF</small>
+                            <strong>@(_venta.ClienteNif ?? "—")</strong>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_venta.Observaciones))
+                        {
+                            <div class="col-12">
+                                <small class="text-muted d-block">Observaciones</small>
+                                <span>@_venta.Observaciones</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Líneas de venta -->
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="fas fa-list me-2"></i>Líneas de venta</div>
+                <div class="card-body p-0">
+                    <table class="table table-borderless align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Descripción</th>
+                                <th class="text-center" style="width:80px">Cant.</th>
+                                <th class="text-end" style="width:110px">Precio unit.</th>
+                                <th class="text-end" style="width:110px">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in _venta.Detalles)
+                            {
+                                <tr>
+                                    <td>@d.Descripcion</td>
+                                    <td class="text-center">@d.Cantidad</td>
+                                    <td class="text-end">@d.PrecioUnitario.ToString("N2") €</td>
+                                    <td class="text-end fw-semibold">@d.Subtotal.ToString("N2") €</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Derecha: resumen + acciones -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm position-sticky" style="top:20px">
+                <div class="card-header"><i class="fas fa-calculator me-2"></i>Totales</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Base imponible</span>
+                        <span>@_venta.BaseImponible.ToString("N2") €</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">IVA (@_venta.PorcentajeIva.ToString("0")%)</span>
+                        <span>@_venta.ImporteIva.ToString("N2") €</span>
+                    </div>
+                    <hr />
+                    <div class="d-flex justify-content-between mb-4">
+                        <span class="fw-bold fs-5">TOTAL</span>
+                        <span class="fw-bold fs-5 text-primary">@_venta.Total.ToString("N2") €</span>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_error))
+                    {
+                        <div class="alert alert-danger py-2 small">@_error</div>
+                    }
+
+                    <!-- Selector de formato PDF -->
+                    <div class="border rounded px-3 py-2 bg-light mb-2">
+                        <div class="small fw-semibold text-muted mb-2">
+                            <i class="fas fa-ruler me-1"></i>Formato de impresión
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="radio" name="fmtVta" id="fmtVtaA4"
+                                       checked="@(_formato == "a4")"
+                                       @onchange='() => _formato = "a4"' />
+                                <label class="form-check-label small" for="fmtVtaA4">
+                                    <i class="fas fa-file me-1 text-primary"></i>A4
+                                </label>
+                            </div>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="radio" name="fmtVta" id="fmtVta80"
+                                       checked="@(_formato == "ticket_80mm")"
+                                       @onchange='() => _formato = "ticket_80mm"' />
+                                <label class="form-check-label small" for="fmtVta80">
+                                    <i class="fas fa-receipt me-1 text-success"></i>80 mm
+                                </label>
+                            </div>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="radio" name="fmtVta" id="fmtVta58"
+                                       checked="@(_formato == "ticket_58mm")"
+                                       @onchange='() => _formato = "ticket_58mm"' />
+                                <label class="form-check-label small" for="fmtVta58">
+                                    <i class="fas fa-receipt me-1 text-warning"></i>58 mm
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (string.IsNullOrEmpty(_venta.NumeroFactura))
+                    {
+                        <button class="btn btn-outline-warning w-100 mb-2" @onclick="GenerarFactura" disabled="@_procesando">
+                            @if (_procesando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fas fa-file-invoice me-2"></i>Generar factura
+                        </button>
+                    }
+                    else if (!_venta.FacturaEnviada)
+                    {
+                        <button class="btn btn-success w-100 mb-2" @onclick="EnviarFactura" disabled="@_enviando">
+                            @if (_enviando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            <i class="fas fa-envelope me-2"></i>Enviar factura por email
+                        </button>
+                    }
+                    else
+                    {
+                        <div class="alert alert-success py-2 small text-center">
+                            <i class="fas fa-check-circle me-1"></i>Factura enviada
+                        </div>
+                    }
+
+                    @if (_venta.Estado == "pendiente")
+                    {
+                        <button class="btn btn-outline-success w-100 mb-2" @onclick="MarcarCobrada" disabled="@_procesando">
+                            <i class="fas fa-check me-1"></i>Marcar como cobrada
+                        </button>
+                    }
+                    else if (_venta.Estado == "cobrada")
+                    {
+                        <button class="btn btn-outline-danger w-100 mb-2" @onclick="AnularVenta" disabled="@_procesando">
+                            <i class="fas fa-times me-1"></i>Anular venta
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<PdfViewerModal PdfUrl="@_pdfUrl" Titulo="@_pdfTitulo" OnClose='() => _pdfUrl = string.Empty' />
+
+@code {
+    [Parameter] public int Id { get; set; }
+    VentaDto?  _venta;
+    EmpresaDto? _empresa;
+    bool _cargando = true, _enviando, _procesando, _enviandoEmail;
+    string _error    = string.Empty;
+    string _apiBase  = string.Empty;
+    string _pdfUrl   = string.Empty;
+    string _pdfTitulo = string.Empty;
+    string _formato  = "a4";
+
+    void VerPdf(string url, string titulo) { _pdfUrl = url; _pdfTitulo = titulo; }
+
+    string VentaPdfUrl() =>
+        _apiBase + $"/api/ventas/{Id}/pdf" +
+        (string.IsNullOrEmpty(_formato) ? "" : $"?formato={_formato}");
+
+    async Task EnviarTicket(string dest)
+    {
+        _enviandoEmail = true;
+        var (ok, msg) = await VentaSvc.EnviarTicketAsync(Id, dest);
+        _enviandoEmail = false;
+        if (ok) Notif.Success(msg);
+        else Notif.Error(msg);
+    }
+
+    async Task GenerarFactura()
+    {
+        _error = string.Empty;
+        _procesando = true;
+        try
+        {
+            var (ok, msg) = await VentaSvc.GenerarFacturaAsync(Id);
+            if (ok) { Notif.Success("Factura generada correctamente."); _venta = await VentaSvc.GetByIdAsync(Id); }
+            else _error = msg;
+        }
+        catch (Exception ex) { _error = "Error: " + ex.Message; }
+        finally { _procesando = false; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _apiBase = (Config["ApiBaseUrl"] ?? "http://localhost:5000").TrimEnd('/');
+        _venta   = await VentaSvc.GetByIdAsync(Id);
+        _empresa = await EmpresaSvc.GetAsync();
+        if (_venta == null) Nav.NavigateTo("/ventas");
+        _formato  = _empresa?.TicketFormato ?? "a4";
+        _cargando = false;
+    }
+
+    async Task EnviarFactura()
+    {
+        _error = string.Empty;
+        _enviando = true;
+        var (ok, msg) = await VentaSvc.EnviarFacturaAsync(Id);
+        _enviando = false;
+        if (ok) { Notif.Success("Factura enviada correctamente."); _venta = await VentaSvc.GetByIdAsync(Id); }
+        else _error = msg;
+    }
+
+    Task MarcarCobrada() => CambiarEstado("cobrada");
+    Task AnularVenta()   => CambiarEstado("anulada");
+
+    async Task CambiarEstado(string estado)
+    {
+        _error = string.Empty;
+        _procesando = true;
+        var (ok, msg) = await VentaSvc.UpdateEstadoAsync(Id, estado);
+        _procesando = false;
+        if (ok) { Notif.Success("Estado actualizado."); _venta = await VentaSvc.GetByIdAsync(Id); }
+        else _error = msg;
+    }
+
+    string WaMsgVenta()
+    {
+        if (_venta == null) return string.Empty;
+        var tpl = _empresa?.WaMsgListo
+                  ?? "¡Hola {nombre}! Tu compra {orden} por {total}€ ha sido procesada. Gracias por tu confianza en {tienda}. 🛍️";
+        var urlPublica = _empresa?.UrlPublica?.TrimEnd('/');
+        var linkTicket = string.IsNullOrEmpty(urlPublica) ? "" : $"{urlPublica}/api/ventas/{Id}/pdf";
+        return tpl
+            .Replace("{nombre}",      _venta.ClienteNombreCompleto ?? "")
+            .Replace("{orden}",       _venta.NumeroVenta)
+            .Replace("{tienda}",      _empresa?.Nombre ?? "CellShop")
+            .Replace("{total}",       _venta.Total.ToString("N2"))
+            .Replace("{estado}",      _venta.Estado)
+            .Replace("{dispositivo}", "")
+            .Replace("{link_ticket}", linkTicket);
+    }
+
+    static string BadgeColor(string estado) => estado switch
+    {
+        "pendiente" => "warning",
+        "cobrada"   => "success",
+        "anulada"   => "danger",
+        _           => "secondary"
+    };
+}

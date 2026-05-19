@@ -1,0 +1,17 @@
+@if (Cargando)
+{
+    <div class="d-flex justify-content-center align-items-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+        @if (!string.IsNullOrEmpty(Texto))
+        {
+            <span class="ms-3 text-muted">@Texto</span>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public bool   Cargando { get; set; }
+    [Parameter] public string Texto    { get; set; } = "Cargando...";
+}

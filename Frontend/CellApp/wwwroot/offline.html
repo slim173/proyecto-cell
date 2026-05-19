@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sin conexión — CellShop ERP</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #141929 0%, #1e2540 100%);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .icon {
+      width: 96px; height: 96px;
+      background: rgba(79,110,247,0.15);
+      border: 2px solid rgba(79,110,247,0.4);
+      border-radius: 24px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 28px;
+      font-size: 42px;
+    }
+    h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 12px; }
+    p  { color: rgba(255,255,255,0.6); font-size: 0.95rem; line-height: 1.6; max-width: 360px; }
+    .card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin: 28px 0;
+      max-width: 400px;
+      width: 100%;
+      text-align: left;
+    }
+    .card h3 { font-size: 0.85rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+    .card li  { list-style: none; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.07); font-size: 0.9rem; color: rgba(255,255,255,0.75); }
+    .card li:last-child { border-bottom: none; }
+    .card li span { font-family: monospace; font-size: 0.8rem; background: rgba(79,110,247,0.2); padding: 2px 6px; border-radius: 4px; margin-right: 8px; }
+    button {
+      background: #4f6ef7;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 32px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+    button:hover { background: #3a56d4; }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;
+      display: inline-block; margin-right: 8px; animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.3 } }
+  </style>
+</head>
+<body>
+  <div class="icon">📵</div>
+  <h1>Sin conexión con el servidor</h1>
+  <p>El servidor de CellShop no está disponible en este momento. Asegúrate de que el PC del taller esté encendido y conectado a la misma red Wi-Fi.</p>
+
+  <div class="card">
+    <h3>Qué comprobar</h3>
+    <ul>
+      <li><span>1</span> El PC del taller está encendido</li>
+      <li><span>2</span> Estás conectado al Wi-Fi del taller</li>
+      <li><span>3</span> La app CellShop está ejecutándose en el PC</li>
+      <li><span>4</span> No hay cortafuegos bloqueando el acceso</li>
+    </ul>
+  </div>
+
+  <button onclick="location.reload()">
+    <span class="dot"></span>Reintentar conexión
+  </button>
+</body>
+</html>

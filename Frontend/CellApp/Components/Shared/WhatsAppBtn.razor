@@ -1,0 +1,31 @@
+@* Botón WhatsApp: abre wa.me con el mensaje ya formateado. *@
+@* Si el teléfono está vacío no se renderiza nada.           *@
+
+@if (!string.IsNullOrWhiteSpace(Telefono))
+{
+    <a href="@WaUrl" target="_blank" rel="noopener noreferrer"
+       class="btn btn-outline-success btn-sm" title="Enviar WhatsApp">
+        <i class="fab fa-whatsapp me-1"></i>@Etiqueta
+    </a>
+}
+
+@code {
+    /// <summary>Número en cualquier formato; se limpia automáticamente.</summary>
+    [Parameter] public string Telefono { get; set; } = string.Empty;
+
+    /// <summary>Mensaje ya con las variables sustituidas.</summary>
+    [Parameter] public string Mensaje  { get; set; } = string.Empty;
+
+    /// <summary>Texto del botón. Por defecto "WhatsApp".</summary>
+    [Parameter] public string Etiqueta { get; set; } = "WhatsApp";
+
+    string WaUrl
+    {
+        get
+        {
+            var digits = new string(Telefono.Where(char.IsDigit).ToArray());
+            var text   = Uri.EscapeDataString(Mensaje);
+            return $"https://wa.me/{digits}?text={text}";
+        }
+    }
+}

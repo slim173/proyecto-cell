@@ -1,0 +1,245 @@
+@page "/reparaciones"
+@rendermode InteractiveServer
+@inject ReparacionApiService Svc
+@inject NavigationManager Nav
+@inject NotificacionService Notif
+@inject IJSRuntime JS
+
+<PageTitle>Reparaciones — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-tools me-2 text-primary"></i>Reparaciones</h4>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-success btn-sm" @onclick="ExportarCsv" disabled="@_exportando">
+            @if (_exportando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="fas fa-file-csv me-1"></i>Exportar CSV
+        </button>
+        <a href="/reparaciones/nueva" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus me-1"></i>Nueva orden
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <input class="form-control form-control-sm" placeholder="Buscar por cliente, dispositivo, orden..."
+                       @bind="_busqueda" @bind:event="oninput" />
+            </div>
+            <div class="col-auto">
+                @foreach (var e in _estados)
+                {
+                    <button class="btn btn-sm me-1 @((_filtroEstado == e) ? "btn-primary" : "btn-outline-secondary")"
+                            @onclick="() => { _filtroEstado = _filtroEstado == e ? null : e; }">
+                        @EstadoLabel(e)
+                    </button>
+                }
+            </div>
+            <div class="col-auto ms-auto">
+                <select class="form-select form-select-sm" @bind="_filtroPrioridad">
+                    <option value="">Todas las prioridades</option>
+                    <option value="urgente">Urgente</option>
+                    <option value="alta">Alta</option>
+                    <option value="normal">Normal</option>
+                    <option value="baja">Baja</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    var lista = Filtradas();
+    if (!lista.Any())
+    {
+        <div class="text-center text-muted py-5">
+            <i class="fas fa-tools fa-3x mb-3 opacity-25"></i>
+            <p>No hay reparaciones que coincidan con los filtros.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>N° Orden</th>
+                            <th>Cliente</th>
+                            <th>Dispositivo</th>
+                            <th>Estado</th>
+                            <th>Prioridad</th>
+                            <th>Recepción</th>
+                            <th>Entrega est.</th>
+                            <th>Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in lista)
+                        {
+                            <tr class="@PrioridadRowClass(r.Prioridad)">
+                                <td><strong>@r.NumeroOrden</strong></td>
+                                <td>@r.ClienteNombreCompleto</td>
+                                <td>
+                                    <div>@r.Dispositivo</div>
+                                    @if (!string.IsNullOrEmpty(r.Marca) || !string.IsNullOrEmpty(r.Modelo))
+                                    {
+                                        <small class="text-muted">@r.Marca @r.Modelo</small>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge bg-@EstadoColor(r.Estado)">@EstadoLabel(r.Estado)</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-@PrioridadColor(r.Prioridad)">@r.Prioridad</span>
+                                </td>
+                                <td><small>@r.FechaRecepcion.ToString("dd/MM/yyyy")</small></td>
+                                <td>
+                                    @if (r.FechaEstimadaEntrega.HasValue)
+                                    {
+                                        <small class="@(r.FechaEstimadaEntrega < DateTime.Now && r.Estado != "entregado" ? "text-danger fw-semibold" : "")">
+                                            @r.FechaEstimadaEntrega.Value.ToString("dd/MM/yyyy")
+                                        </small>
+                                    }
+                                    else { <small class="text-muted">—</small> }
+                                </td>
+                                <td class="text-end">
+                                    @if (r.Total.HasValue)
+                                    {
+                                        <strong>@r.Total.Value.ToString("N2") €</strong>
+                                    }
+                                    else if (r.PrecioEstimado.HasValue)
+                                    {
+                                        <span class="text-muted">~@r.PrecioEstimado.Value.ToString("N2") €</span>
+                                    }
+                                    else { <span class="text-muted">—</span> }
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-flex justify-content-end gap-1">
+                                        @if (!string.IsNullOrEmpty(r.ClienteTelefono))
+                                        {
+                                            <WhatsAppBtn Telefono="@r.ClienteTelefono"
+                                                         Mensaje="@($"Hola {r.ClienteNombreCompleto}, te informamos sobre la orden {r.NumeroOrden} ({r.Dispositivo}). Estado actual: {EstadoLabel(r.Estado)}.")"
+                                                         Etiqueta="" />
+                                        }
+                                        <a href="/reparaciones/@r.Id" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="text-muted small mt-2">@lista.Count resultado(s)</div>
+    }
+}
+
+@code {
+    List<ReparacionDto> _reparaciones = new();
+    bool _cargando = true;
+    bool _exportando;
+    string _busqueda = string.Empty;
+    string? _filtroEstado;
+    string _filtroPrioridad = string.Empty;
+
+    static readonly string[] _estados = { "recibido", "diagnosticado", "en_reparacion", "reparado", "entregado", "no_reparable" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _reparaciones = await Svc.GetAllAsync();
+        _cargando = false;
+    }
+
+    List<ReparacionDto> Filtradas()
+    {
+        var q = _reparaciones.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_busqueda))
+        {
+            var b = _busqueda.ToLower();
+            q = q.Where(r =>
+                r.NumeroOrden.Contains(b, StringComparison.OrdinalIgnoreCase) ||
+                (r.ClienteNombreCompleto ?? "").Contains(b, StringComparison.OrdinalIgnoreCase) ||
+                r.Dispositivo.Contains(b, StringComparison.OrdinalIgnoreCase) ||
+                (r.Marca ?? "").Contains(b, StringComparison.OrdinalIgnoreCase) ||
+                (r.Modelo ?? "").Contains(b, StringComparison.OrdinalIgnoreCase));
+        }
+        if (!string.IsNullOrEmpty(_filtroEstado))
+            q = q.Where(r => r.Estado == _filtroEstado);
+        if (!string.IsNullOrEmpty(_filtroPrioridad))
+            q = q.Where(r => r.Prioridad == _filtroPrioridad);
+
+        return q.OrderByDescending(r => r.FechaRecepcion).ToList();
+    }
+
+    static string EstadoLabel(string e) => e switch
+    {
+        "recibido"      => "Recibido",
+        "diagnosticado" => "Diagnosticado",
+        "en_reparacion" => "En reparación",
+        "reparado"      => "Reparado",
+        "entregado"     => "Entregado",
+        "no_reparable"  => "No reparable",
+        _               => e
+    };
+
+    static string EstadoColor(string e) => e switch
+    {
+        "recibido"      => "secondary",
+        "diagnosticado" => "info",
+        "en_reparacion" => "warning",
+        "reparado"      => "primary",
+        "entregado"     => "success",
+        "no_reparable"  => "danger",
+        _               => "secondary"
+    };
+
+    static string PrioridadColor(string p) => p switch
+    {
+        "urgente" => "danger",
+        "alta"    => "warning",
+        "normal"  => "primary",
+        "baja"    => "secondary",
+        _         => "secondary"
+    };
+
+    static string PrioridadRowClass(string p) => p switch
+    {
+        "urgente" => "prio-urgente",
+        "alta"    => "prio-alta",
+        _         => ""
+    };
+
+    async Task ExportarCsv()
+    {
+        _exportando = true;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("N° Orden;Cliente;Dispositivo;Marca;Modelo;IMEI;Estado;Prioridad;Técnico;Recepción;Entrega est.;Entrega real;Precio estimado;Total");
+        foreach (var r in Filtradas())
+            sb.AppendLine(string.Join(";",
+                r.NumeroOrden,
+                (r.ClienteNombreCompleto ?? "").Replace(";", " "),
+                r.Dispositivo,
+                r.Marca ?? "",
+                r.Modelo ?? "",
+                r.Imei ?? "",
+                EstadoLabel(r.Estado),
+                r.Prioridad,
+                r.TecnicoAsignado ?? "",
+                r.FechaRecepcion.ToString("dd/MM/yyyy"),
+                r.FechaEstimadaEntrega?.ToString("dd/MM/yyyy") ?? "",
+                r.FechaEntregaReal?.ToString("dd/MM/yyyy") ?? "",
+                r.PrecioEstimado?.ToString("N2") ?? "",
+                r.Total?.ToString("N2") ?? ""));
+        await JS.InvokeVoidAsync("descargarCsv", sb.ToString(), $"reparaciones_{DateTime.Today:yyyyMMdd}.csv");
+        _exportando = false;
+    }
+}

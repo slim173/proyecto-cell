@@ -1,0 +1,262 @@
+@page "/ventas/nueva"
+@rendermode InteractiveServer
+@inject VentaApiService VentaSvc
+@inject ClienteApiService ClienteSvc
+@inject ProductoApiService ProductoSvc
+@inject NavigationManager Nav
+@inject NotificacionService Notif
+
+<PageTitle>Nueva venta — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-cash-register me-2 text-primary"></i>Nueva venta</h4>
+    <a href="/ventas" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-arrow-left me-1"></i>Volver
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- Columna izquierda: cliente + productos -->
+    <div class="col-lg-8">
+        <!-- Cliente -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header"><i class="fas fa-user me-2"></i>Cliente</div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-8">
+                        <select class="form-select" @bind="_dto.ClienteId">
+                            <option value="0">— Seleccionar cliente —</option>
+                            @foreach (var c in _clientes)
+                            {
+                                <option value="@c.Id">@c.NombreCompleto — @c.Email</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select" @bind="_dto.MetodoPago">
+                            <option value="efectivo">Efectivo</option>
+                            <option value="tarjeta">Tarjeta</option>
+                            <option value="transferencia">Transferencia</option>
+                            <option value="bizum">Bizum</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <input class="form-control" placeholder="Observaciones (opcional)" @bind="_dto.Observaciones" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Líneas de venta -->
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-list me-2"></i>Líneas de venta</span>
+                <button class="btn btn-sm btn-outline-primary" @onclick="AgregarLinea">
+                    <i class="fas fa-plus me-1"></i>Agregar línea
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-borderless align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:35%">Producto / Descripción</th>
+                            <th style="width:15%">Cant.</th>
+                            <th style="width:20%">Precio unit.</th>
+                            <th style="width:20%">Subtotal</th>
+                            <th style="width:10%"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (linea, i) in _dto.Detalles.Select((l, i) => (l, i)))
+                        {
+                            <tr>
+                                <td>
+                                    <select class="form-select form-select-sm mb-1"
+                                            @onchange="e => OnProductoChange(e, linea)">
+                                        <option value="0">— Línea libre —</option>
+                                        @foreach (var p in _productos)
+                                        {
+                                            <option value="@p.Id" selected="@(linea.ProductoId == p.Id)">
+                                                @p.Nombre (@p.PrecioVenta.ToString("N2") €)
+                                            </option>
+                                        }
+                                    </select>
+                                    <input class="form-control form-control-sm" placeholder="Descripción"
+                                           @bind="linea.Descripcion" />
+                                </td>
+                                <td>
+                                    <input class="form-control form-control-sm text-center" type="number"
+                                           min="1" @bind="linea.Cantidad" />
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <input class="form-control text-end" type="number" step="0.01" min="0"
+                                               @bind="linea.PrecioUnitario" />
+                                        <span class="input-group-text">€</span>
+                                    </div>
+                                </td>
+                                <td class="fw-semibold text-end">@linea.Subtotal.ToString("N2") €</td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => QuitarLinea(i)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!_dto.Detalles.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-3">
+                                    Haz clic en "Agregar línea" para añadir productos
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Columna derecha: resumen y totales -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm position-sticky" style="top:20px;">
+            <div class="card-header"><i class="fas fa-receipt me-2"></i>Resumen</div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Subtotal líneas</span>
+                    <span>@SubtotalLineas.ToString("N2") €</span>
+                </div>
+
+                <!-- Descuento -->
+                <div class="mb-2 p-2 bg-light rounded-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted fw-semibold">Descuento</small>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button"
+                                    class="btn btn-sm @(_dto.TipoDescuento=="importe"?"btn-secondary":"btn-outline-secondary")"
+                                    @onclick='() => _dto.TipoDescuento = "importe"'>€</button>
+                            <button type="button"
+                                    class="btn btn-sm @(_dto.TipoDescuento=="porcentaje"?"btn-secondary":"btn-outline-secondary")"
+                                    @onclick='() => _dto.TipoDescuento = "porcentaje"'>%</button>
+                        </div>
+                    </div>
+                    <div class="input-group input-group-sm">
+                        <input class="form-control text-end" type="number" step="0.01" min="0"
+                               @bind="_dto.Descuento" />
+                        <span class="input-group-text">@(_dto.TipoDescuento == "porcentaje" ? "%" : "€")</span>
+                    </div>
+                    @if (DescuentoReal > 0)
+                    {
+                        <div class="d-flex justify-content-between text-danger small mt-1">
+                            <span>Ahorro</span>
+                            <span>-@DescuentoReal.ToString("N2") €</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Base imponible</span>
+                    <span>@BaseImponible.ToString("N2") €</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">IVA (21%)</span>
+                    <span>@ImporteIva.ToString("N2") €</span>
+                </div>
+                <hr />
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="fw-bold fs-5">TOTAL</span>
+                    <span class="fw-bold fs-5 text-primary">@Total.ToString("N2") €</span>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger py-2 small">@_error</div>
+                }
+
+                <button class="btn btn-primary w-100" @onclick="Confirmar" disabled="@_guardando">
+                    @if (_guardando)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    <i class="fas fa-check-circle me-2"></i>Confirmar venta
+                </button>
+                <a href="/ventas" class="btn btn-outline-secondary w-100 mt-2">Cancelar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    CreateVentaDto _dto = new() { MetodoPago = "efectivo" };
+    List<ClienteDto> _clientes = new();
+    List<ProductoDto> _productos = new();
+    bool _guardando;
+    string _error = string.Empty;
+
+    decimal SubtotalLineas => _dto.Detalles.Sum(d => d.Subtotal);
+    decimal DescuentoReal  => _dto.TipoDescuento == "porcentaje"
+        ? Math.Round(SubtotalLineas * _dto.Descuento / 100, 2)
+        : Math.Min(_dto.Descuento, SubtotalLineas);
+    decimal BaseImponible  => SubtotalLineas - DescuentoReal;
+    decimal ImporteIva     => Math.Round(BaseImponible * 0.21m, 2);
+    decimal Total          => BaseImponible + ImporteIva;
+
+    [SupplyParameterFromQuery] public int? ClienteId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _clientes  = await ClienteSvc.GetAllAsync();
+        _productos = await ProductoSvc.GetAllAsync();
+        if (ClienteId.HasValue) _dto.ClienteId = ClienteId.Value;
+        AgregarLinea();
+    }
+
+    void AgregarLinea() => _dto.Detalles.Add(new CreateVentaDetalleDto { Cantidad = 1 });
+
+    void QuitarLinea(int i) => _dto.Detalles.RemoveAt(i);
+
+    void OnProductoChange(ChangeEventArgs e, CreateVentaDetalleDto linea)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var pid) && pid > 0)
+        {
+            var p = _productos.FirstOrDefault(x => x.Id == pid);
+            if (p != null)
+            {
+                linea.ProductoId     = p.Id;
+                linea.Descripcion    = p.Nombre;
+                linea.PrecioUnitario = p.PrecioVenta;
+            }
+        }
+        else
+        {
+            linea.ProductoId = null;
+        }
+    }
+
+    async Task Confirmar()
+    {
+        _error = string.Empty;
+        if (_dto.ClienteId == 0) { _error = "Selecciona un cliente."; return; }
+        if (!_dto.Detalles.Any()) { _error = "Agrega al menos un producto."; return; }
+        if (_dto.Detalles.Any(d => string.IsNullOrWhiteSpace(d.Descripcion)))
+        { _error = "Todas las líneas deben tener descripción."; return; }
+        if (_dto.Detalles.Any(d => d.PrecioUnitario <= 0))
+        { _error = "El precio unitario debe ser mayor a 0."; return; }
+
+        _guardando = true;
+        try
+        {
+            var (ok, msg, _) = await VentaSvc.CreateAsync(_dto);
+            if (ok) { Notif.Success("Venta registrada y factura generada."); Nav.NavigateTo("/ventas"); }
+            else _error = msg;
+        }
+        catch (Exception ex)
+        {
+            _error = "Error al guardar la venta: " + ex.Message;
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

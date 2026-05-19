@@ -1,0 +1,263 @@
+@inherits LayoutComponentBase
+@inject NotificacionService Notif
+@inject AuthStateService AuthState
+@inject AppStateService AppState
+@inject NavigationManager Nav
+@implements IDisposable
+
+@if (!AuthState.IsAuthenticated)
+{
+    @* Sin sesión: OnInitialized redirige a /login *@
+}
+else
+{
+    <div class="d-flex" style="min-height:100vh;">
+
+        <!-- ═══════════════════════════════ SIDEBAR ═══════════════════ -->
+        <nav class="sidebar d-flex flex-column flex-shrink-0 p-3 text-white" style="width:256px;">
+
+            <!-- Brand -->
+            <a href="/" class="d-flex align-items-center gap-3 mb-3 text-white text-decoration-none px-1">
+                <div class="sidebar-brand-icon">
+                    <i class="fas fa-mobile-alt"></i>
+                </div>
+                <div>
+                    <div class="fw-bold" style="font-size:.96rem;line-height:1.1;letter-spacing:-.3px;">CellShop ERP</div>
+                    <div style="font-size:.59rem;color:rgba(255,255,255,.3);letter-spacing:.09em;text-transform:uppercase;">Gestión de tienda</div>
+                </div>
+            </a>
+            <hr class="my-2" />
+
+            <!-- Nav items -->
+            <ul class="nav nav-pills flex-column mb-auto" style="gap:1px;">
+
+                <li>
+                    <NavLink href="/" Match="NavLinkMatch.All" class="nav-link text-white">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </NavLink>
+                </li>
+
+                <li class="mt-2"><span class="nav-label">Gestión</span></li>
+                <li>
+                    <NavLink href="/clientes" class="nav-link text-white">
+                        <i class="fas fa-users"></i> Clientes
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/productos" class="nav-link text-white">
+                        <i class="fas fa-box"></i> Productos
+                    </NavLink>
+                </li>
+
+                <li class="mt-2"><span class="nav-label">Operaciones</span></li>
+                <li>
+                    <NavLink href="/ventas" class="nav-link text-white">
+                        <i class="fas fa-cash-register"></i> Ventas
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/reparaciones" class="nav-link text-white">
+                        <i class="fas fa-tools"></i> Reparaciones
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/tecnicos" class="nav-link text-white">
+                        <i class="fas fa-users-gear"></i> Técnicos
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/compras" class="nav-link text-white">
+                        <i class="fas fa-truck"></i> Compras
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/garantias" class="nav-link text-white">
+                        <i class="fas fa-shield-alt"></i> Garantías
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/caja" class="nav-link text-white">
+                        <i class="fas fa-coins"></i> Caja / TPV
+                    </NavLink>
+                </li>
+
+                <li class="mt-2"><span class="nav-label">Inventario</span></li>
+                <li>
+                    <NavLink href="/inventario/kardex" class="nav-link text-white">
+                        <i class="fas fa-list-alt"></i> Kardex
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/inventario/alertas" class="nav-link text-white d-flex align-items-center justify-content-between">
+                        <span><i class="fas fa-exclamation-triangle"></i> Alertas Stock</span>
+                        @if (AppState.StockAlertCount > 0)
+                        {
+                            <span class="sb-badge">@(AppState.StockAlertCount > 99 ? "99+" : AppState.StockAlertCount.ToString())</span>
+                        }
+                    </NavLink>
+                </li>
+
+                <li class="mt-2"><span class="nav-label">Facturación</span></li>
+                <li>
+                    <NavLink href="/facturas" class="nav-link text-white">
+                        <i class="fas fa-file-invoice-dollar"></i> Facturas
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/whatsapp" class="nav-link text-white">
+                        <i class="fab fa-whatsapp" style="color:#25d366"></i> Avisos WhatsApp
+                    </NavLink>
+                </li>
+
+                <li class="mt-2"><span class="nav-label">Configuración</span></li>
+                <li>
+                    <NavLink href="/empresa" class="nav-link text-white">
+                        <i class="fas fa-building"></i> Empresa
+                    </NavLink>
+                </li>
+                @if (AuthState.IsAdmin)
+                {
+                    <li>
+                        <NavLink href="/admin/usuarios" class="nav-link text-white">
+                            <i class="fas fa-users-cog"></i> Usuarios
+                        </NavLink>
+                    </li>
+                }
+
+                <li class="mt-2"><span class="nav-label">Portal</span></li>
+                <li>
+                    <a href="/cliente" target="_blank" class="nav-link text-white" style="opacity:.72;">
+                        <i class="fas fa-external-link-alt"></i> Portal Cliente
+                    </a>
+                </li>
+            </ul>
+
+            <hr class="my-2" />
+
+            <!-- User area -->
+            <div class="d-flex align-items-center gap-2">
+                <NavLink href="/perfil" class="sidebar-user flex-grow-1 text-decoration-none" style="min-width:0;">
+                    <div class="sidebar-user-avatar">@Iniciales()</div>
+                    <div style="min-width:0;">
+                        <div class="sidebar-user-name text-truncate">@AuthState.Nombre</div>
+                        <div class="sidebar-user-role">@(AuthState.IsAdmin ? "Administrador" : "Empleado")</div>
+                    </div>
+                </NavLink>
+                <button class="topbar-btn flex-shrink-0"
+                        @onclick="CerrarSesion" title="Cerrar sesión"
+                        style="color:#f87171;border-color:rgba(248,113,113,.2);background:rgba(248,113,113,.07);">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </nav>
+
+        <!-- ═══════════════════════════ CONTENIDO ════════════════════ -->
+        <div class="flex-grow-1 d-flex flex-column" style="min-width:0;">
+
+            <!-- Topbar -->
+            <header class="topbar d-flex align-items-center px-4 py-2 gap-2">
+
+                <!-- Reloj en vivo -->
+                <div class="d-flex align-items-center gap-2 text-muted small flex-grow-1">
+                    <i class="fas fa-clock" style="font-size:.8rem;"></i>
+                    <span>@_ahora.ToString("dd/MM/yyyy")</span>
+                    <span class="topbar-divider"></span>
+                    <span class="fw-600" style="font-variant-numeric:tabular-nums;">@_ahora.ToString("HH:mm")</span>
+                </div>
+
+                <!-- Alertas -->
+                <a href="/inventario/alertas" class="topbar-btn" title="Alertas de stock">
+                    <i class="fas fa-bell"></i>
+                    @if (AppState.StockAlertCount > 0)
+                    {
+                        <span class="topbar-badge">@(AppState.StockAlertCount > 99 ? "99+" : AppState.StockAlertCount.ToString())</span>
+                    }
+                </a>
+
+                <!-- Portal -->
+                <a href="/cliente" target="_blank" class="topbar-btn" title="Abrir portal del cliente">
+                    <i class="fas fa-mobile-alt"></i>
+                </a>
+
+                <div class="topbar-divider"></div>
+
+                <!-- User -->
+                <NavLink href="/perfil" class="d-flex align-items-center gap-2 text-decoration-none" style="color:var(--text);">
+                    <div class="user-avatar-sm">@Iniciales()</div>
+                    <div class="d-none d-md-flex flex-column" style="line-height:1.2;">
+                        <span style="font-size:.8rem;font-weight:700;color:var(--text);">@AuthState.Nombre</span>
+                        <span style="font-size:.68rem;color:var(--text-muted);">@AuthState.Username</span>
+                    </div>
+                </NavLink>
+            </header>
+
+            <!-- Page content -->
+            <main class="flex-grow-1 p-4">
+                @Body
+            </main>
+        </div>
+    </div>
+
+    <ToastContainer />
+}
+
+<style>
+/* Badge lateral en sidebar */
+.sb-badge {
+    background: rgba(239,68,68,.85);
+    color: #fff;
+    font-size: .58rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 10px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+</style>
+
+@code {
+    DateTime _ahora = DateTime.Now;
+    System.Threading.Timer? _clock;
+
+    protected override void OnInitialized()
+    {
+        Notif.OnChange     += StateHasChanged;
+        AuthState.OnChange += OnAuthChanged;
+        AppState.OnChange  += OnAppStateChanged;
+
+        if (!AuthState.IsAuthenticated)
+            Nav.NavigateTo("/login");
+
+        // Actualiza el reloj cada 30 s
+        _clock = new System.Threading.Timer(
+            _ => InvokeAsync(() => { _ahora = DateTime.Now; StateHasChanged(); }),
+            null, 30_000, 30_000);
+    }
+
+    void OnAuthChanged()
+    {
+        StateHasChanged();
+        if (!AuthState.IsAuthenticated)
+            Nav.NavigateTo("/login");
+    }
+
+    void OnAppStateChanged() => InvokeAsync(StateHasChanged);
+
+    void CerrarSesion() => AuthState.Clear();
+
+    string Iniciales()
+    {
+        var n = AuthState.Nombre ?? "";
+        var p = n.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return p.Length >= 2 ? $"{p[0][0]}{p[1][0]}".ToUpper()
+             : n.Length > 0  ? n[..1].ToUpper() : "?";
+    }
+
+    public void Dispose()
+    {
+        Notif.OnChange     -= StateHasChanged;
+        AuthState.OnChange -= OnAuthChanged;
+        AppState.OnChange  -= OnAppStateChanged;
+        _clock?.Dispose();
+    }
+}

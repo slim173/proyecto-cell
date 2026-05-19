@@ -1,0 +1,47 @@
+{
+  "name": "CellShop ERP",
+  "short_name": "CellShop",
+  "description": "Gestión de taller de reparación de móviles",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#141929",
+  "theme_color": "#4f6ef7",
+  "lang": "es",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nueva reparación",
+      "short_name": "Reparación",
+      "url": "/reparaciones/nueva",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Clientes",
+      "short_name": "Clientes",
+      "url": "/clientes",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Nueva venta",
+      "short_name": "Venta",
+      "url": "/ventas/nueva",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }]
+    }
+  ]
+}

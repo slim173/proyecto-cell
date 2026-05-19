@@ -1,0 +1,204 @@
+@page "/inventario/kardex"
+@rendermode InteractiveServer
+@inject InventarioApiService Svc
+@inject ProductoApiService ProductoSvc
+
+<PageTitle>Kardex de inventario — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-history me-2 text-primary"></i>Kardex de inventario</h4>
+    <a href="/inventario/alertas" class="btn btn-outline-warning btn-sm">
+        <i class="fas fa-exclamation-triangle me-1"></i>Alertas de stock
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Producto</label>
+                <select class="form-select form-select-sm" @bind="_productoId">
+                    <option value="">Todos los productos</option>
+                    @foreach (var p in _productos)
+                    {
+                        <option value="@p.Id">@p.Nombre</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Desde</label>
+                <input class="form-control form-control-sm" type="date" @bind="_desde" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Hasta</label>
+                <input class="form-control form-control-sm" type="date" @bind="_hasta" />
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button class="btn btn-primary btn-sm w-100" @onclick="Buscar" disabled="@_cargando">
+                    @if (_cargando) { <span class="spinner-border spinner-border-sm"></span> }
+                    else { <i class="fas fa-search me-1"></i> } Filtrar
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" @onclick="Limpiar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        @if (!string.IsNullOrEmpty(_busqueda))
+        {
+            <div class="mt-2">
+                <input class="form-control form-control-sm" placeholder="Buscar en resultados..."
+                       @bind="_busqueda" @bind:event="oninput" />
+            </div>
+        }
+    </div>
+</div>
+
+@if (_cargando)
+{
+    <LoadingSpinner Cargando="true" />
+}
+else if (!_movimientos.Any())
+{
+    <div class="text-center text-muted py-5">
+        <i class="fas fa-history fa-3x mb-3 opacity-25"></i>
+        <p>No hay movimientos con los filtros seleccionados.</p>
+    </div>
+}
+else
+{
+    var lista = FiltrarLocal();
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Producto</th>
+                        <th>Tipo</th>
+                        <th class="text-end">Cant.</th>
+                        <th class="text-end">Stock ant.</th>
+                        <th class="text-end">Stock post.</th>
+                        <th>Referencia</th>
+                        <th>Observaciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in lista)
+                    {
+                        <tr>
+                            <td><small>@m.Fecha.ToString("dd/MM/yyyy HH:mm")</small></td>
+                            <td>
+                                <div>@m.ProductoNombre</div>
+                                @if (!string.IsNullOrEmpty(m.ProductoCodigo))
+                                {
+                                    <small class="text-muted">@m.ProductoCodigo</small>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge bg-@TipoBadge(m.Tipo)">@TipoLabel(m.Tipo)</span>
+                            </td>
+                            <td class="text-end @(m.Cantidad >= 0 ? "text-success" : "text-danger") fw-semibold">
+                                @(m.Cantidad >= 0 ? "+" : "")@m.Cantidad
+                            </td>
+                            <td class="text-end text-muted">@m.StockAnterior</td>
+                            <td class="text-end fw-semibold">@m.StockPosterior</td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(m.ReferenciaTipo))
+                                {
+                                    <small class="text-muted">@m.ReferenciaTipo #@m.ReferenciaId</small>
+                                }
+                            </td>
+                            <td><small class="text-muted">@m.Observaciones</small></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="text-muted small mt-2">@lista.Count movimiento(s)</div>
+}
+
+@code {
+    List<InventarioMovimientoDto> _movimientos = new();
+    List<ProductoDto> _productos = new();
+    bool _cargando = true;
+    string _productoId = string.Empty;
+    DateTime? _desde, _hasta;
+    string _busqueda = string.Empty;
+    string _error = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _productos = await ProductoSvc.GetAllAsync(soloActivos: false); } catch { }
+        await Buscar();
+    }
+
+    async Task Buscar()
+    {
+        _cargando = true;
+        _error = string.Empty;
+        try
+        {
+            int? pid = int.TryParse(_productoId, out var v) && v > 0 ? v : null;
+            _movimientos = await Svc.GetKardexAsync(
+                productoId: pid,
+                desde: _desde,
+                hasta: _hasta.HasValue ? _hasta.Value.AddDays(1).AddSeconds(-1) : null);
+        }
+        catch (Exception ex)
+        {
+            _error = "Error al cargar movimientos: " + ex.Message;
+            _movimientos = new();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    async Task Limpiar()
+    {
+        _productoId = string.Empty;
+        _desde = null;
+        _hasta = null;
+        _busqueda = string.Empty;
+        await Buscar();
+    }
+
+    List<InventarioMovimientoDto> FiltrarLocal()
+    {
+        if (string.IsNullOrWhiteSpace(_busqueda)) return _movimientos;
+        var b = _busqueda.ToLower();
+        return _movimientos.Where(m =>
+            (m.ProductoNombre ?? "").Contains(b, StringComparison.OrdinalIgnoreCase) ||
+            (m.ProductoCodigo ?? "").Contains(b, StringComparison.OrdinalIgnoreCase) ||
+            (m.Observaciones ?? "").Contains(b, StringComparison.OrdinalIgnoreCase) ||
+            (m.ReferenciaTipo ?? "").Contains(b, StringComparison.OrdinalIgnoreCase)
+        ).ToList();
+    }
+
+    static string TipoLabel(string t) => t switch
+    {
+        "entrada"      => "Entrada",
+        "salida"       => "Salida",
+        "ajuste"       => "Ajuste",
+        "venta"        => "Venta",
+        "compra"       => "Compra",
+        "reparacion"   => "Reparación",
+        "devolucion"   => "Devolución",
+        _              => t
+    };
+
+    static string TipoBadge(string t) => t switch
+    {
+        "entrada"    => "success",
+        "compra"     => "success",
+        "devolucion" => "success",
+        "salida"     => "danger",
+        "venta"      => "danger",
+        "reparacion" => "warning",
+        "ajuste"     => "info",
+        _            => "secondary"
+    };
+}

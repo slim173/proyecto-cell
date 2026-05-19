@@ -1,0 +1,1075 @@
+@page "/reparaciones/{Id:int}"
+@rendermode InteractiveServer
+@inject ReparacionApiService Svc
+@inject ProductoApiService ProductoSvc
+@inject EmpresaApiService EmpresaSvc
+@inject ClienteApiService ClienteSvc
+@inject NavigationManager Nav
+@inject NotificacionService Notif
+@inject IConfiguration Config
+
+@* Query param: ?autoImprimir=1 → open PDF automatically on first load *@
+
+<PageTitle>Detalle reparación — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-tools me-2 text-primary"></i>Orden de reparación</h4>
+    <div class="d-flex gap-2 flex-wrap">
+        @if (!_cargando && _rep != null && _rep.Estado != "entregado" && _rep.Estado != "no_reparable")
+        {
+            <button class="btn btn-outline-primary btn-sm"
+                    @onclick="() => { if (_editando) _editando = false; else IniciarEdicion(); }">
+                <i class="fas fa-edit me-1"></i>@(_editando ? "Cancelar edición" : "Editar orden")
+            </button>
+        }
+        <button class="btn btn-outline-danger btn-sm" title="Imprimir / ver PDF de la orden"
+                @onclick='() => VerPdf(RepPdfUrl(), "Orden — " + (_rep?.NumeroOrden ?? ""))'>
+            <i class="fas fa-print me-1"></i>Imprimir
+        </button>
+        <button class="btn btn-outline-success btn-sm" title="Etiqueta con código QR"
+                @onclick='() => VerPdf(_apiBase + $"/api/reparaciones/{Id}/etiqueta", "Etiqueta — " + (_rep?.NumeroOrden ?? ""))'>
+            <i class="fas fa-qrcode me-1"></i>Etiqueta QR
+        </button>
+        <EnviarEmailBtn EmailPorDefecto="@(_rep?.ClienteEmail ?? string.Empty)"
+                        Enviando="_enviandoEmail"
+                        OnEnviar="EnviarPdf" />
+        <a href="/reparaciones" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Volver
+        </a>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando && _rep != null && _editando)
+{
+    <!-- ── Panel de edición ── -->
+    <div class="card shadow-sm mb-4 border-primary">
+        <div class="card-header text-primary">
+            <i class="fas fa-edit me-2"></i>Editar orden de reparación — @_rep.NumeroOrden
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Cliente <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="_editDto.ClienteId">
+                        @foreach (var c in _clientes)
+                        {
+                            <option value="@c.Id">@c.NombreCompleto</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Prioridad</label>
+                    <select class="form-select" @bind="_editDto.Prioridad">
+                        <option value="baja">Baja</option>
+                        <option value="normal">Normal</option>
+                        <option value="alta">Alta</option>
+                        <option value="urgente">Urgente</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Tipo de dispositivo <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="_editDto.Dispositivo">
+                        <option value="Smartphone">Smartphone</option>
+                        <option value="Tablet">Tablet</option>
+                        <option value="Portátil">Portátil</option>
+                        <option value="Smartwatch">Smartwatch</option>
+                        <option value="Consola">Consola</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Marca</label>
+                    <input class="form-control" @bind="_editDto.Marca" placeholder="Samsung, Apple..." />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Modelo</label>
+                    <input class="form-control" @bind="_editDto.Modelo" placeholder="Galaxy S24..." />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">IMEI / Número de serie</label>
+                    <input class="form-control" @bind="_editDto.Imei" placeholder="IMEI o S/N" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Técnico asignado</label>
+                    <input class="form-control" @bind="_editDto.TecnicoAsignado" placeholder="Nombre del técnico" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Descripción de la falla <span class="text-danger">*</span></label>
+                    <textarea class="form-control" rows="3" @bind="_editDto.DescripcionFalla"
+                              placeholder="Describe el problema reportado..."></textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Precio estimado (€ sin IVA)</label>
+                    <div class="input-group">
+                        <input class="form-control" type="number" step="0.01" min="0"
+                               @bind="_editDto.PrecioEstimado" />
+                        <span class="input-group-text">€</span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Fecha estimada de entrega</label>
+                    <input class="form-control" type="date" @bind="_editFechaEstimada" />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_errorEdit))
+            {
+                <div class="alert alert-danger mt-3 py-2 small">
+                    <i class="fas fa-times-circle me-1"></i>@_errorEdit
+                </div>
+            }
+
+            <div class="d-flex gap-2 justify-content-end mt-3">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="() => _editando = false">
+                    <i class="fas fa-times me-1"></i>Cancelar
+                </button>
+                <button class="btn btn-primary btn-sm" @onclick="GuardarEdicion" disabled="@_guardandoEdit">
+                    @if (_guardandoEdit)
+                    { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <i class="fas fa-save me-1"></i>Guardar cambios
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (!_cargando && _rep != null)
+{
+    <div class="row g-4">
+        <!-- Izquierda -->
+        <div class="col-lg-8">
+            <!-- Info dispositivo -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-mobile-alt me-2"></i>@_rep.NumeroOrden</span>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-@PrioridadColor(_rep.Prioridad)">@_rep.Prioridad</span>
+                        <span class="badge bg-@EstadoColor(_rep.Estado) fs-6">@EstadoLabel(_rep.Estado)</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Cliente</small>
+                            <strong>@_rep.ClienteNombreCompleto</strong>
+                            @if (!string.IsNullOrEmpty(_rep.ClienteTelefono))
+                            {
+                                <div class="small text-muted">@_rep.ClienteTelefono</div>
+                            }
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Dispositivo</small>
+                            <strong>@_rep.Dispositivo</strong>
+                            <div class="small text-muted">@_rep.Marca @_rep.Modelo</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">IMEI / S/N</small>
+                            <span>@(_rep.Imei ?? "—")</span>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Técnico</small>
+                            <span>@(_rep.TecnicoAsignado ?? "—")</span>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Descripción de la falla</small>
+                            <p class="mb-0">@_rep.DescripcionFalla</p>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_rep.ObservacionesTecnico))
+                        {
+                            <div class="col-12">
+                                <small class="text-muted d-block">Observaciones del técnico</small>
+                                <p class="mb-0 text-info">@_rep.ObservacionesTecnico</p>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(_rep.Solucion))
+                        {
+                            <div class="col-12">
+                                <small class="text-muted d-block">
+                                    <i class="fas fa-wrench me-1 text-success"></i>Solución aplicada
+                                </small>
+                                <p class="mb-0 text-success fw-semibold">@_rep.Solucion</p>
+                            </div>
+                        }
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Recepción</small>
+                            <span>@_rep.FechaRecepcion.ToString("dd/MM/yyyy HH:mm")</span>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Entrega estimada</small>
+                            <span>@(_rep.FechaEstimadaEntrega?.ToString("dd/MM/yyyy") ?? "—")</span>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Entrega real</small>
+                            <span>@(_rep.FechaEntregaReal?.ToString("dd/MM/yyyy") ?? "—")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Imágenes del dispositivo -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-camera me-2"></i>Fotografías del dispositivo</span>
+                    <span class="badge bg-@(_rep.Imagenes.Count >= 5 ? "success" : (_rep.Imagenes.Count > 0 ? "warning" : "secondary"))">
+                        @_rep.Imagenes.Count imagen(es)
+                    </span>
+                </div>
+                <div class="card-body">
+                    @if (_rep.Imagenes.Any())
+                    {
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            @foreach (var img in _rep.Imagenes)
+                            {
+                                var urlImg = _apiBase + img.RutaImagen;
+                                var imgId  = img.Id;
+                                <div class="position-relative" style="width:120px;">
+                                    <a href="@urlImg" target="_blank" title="@img.NombreArchivo">
+                                        <img src="@urlImg" alt="@img.NombreArchivo"
+                                             style="width:120px;height:90px;object-fit:cover;border-radius:8px;"
+                                             class="border shadow-sm d-block" />
+                                    </a>
+                                    <button class="btn btn-danger btn-sm position-absolute top-0 end-0 p-0"
+                                            style="width:22px;height:22px;border-radius:50%;font-size:0.65rem;line-height:1;opacity:0.85;"
+                                            title="Eliminar fotografía"
+                                            @onclick="() => EliminarImagen(imgId)"
+                                            disabled="@(_eliminandoImagen == imgId)">
+                                        @if (_eliminandoImagen == imgId)
+                                        { <span class="spinner-border spinner-border-sm" style="width:10px;height:10px;border-width:1px;"></span> }
+                                        else
+                                        { <i class="fas fa-times"></i> }
+                                    </button>
+                                    <div class="text-truncate mt-1" style="font-size:0.65rem;color:#6b7280;"
+                                         title="@img.NombreArchivo">@img.NombreArchivo</div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-camera fa-2x mb-2 d-block opacity-25"></i>
+                            Sin fotografías registradas
+                        </div>
+                    }
+
+                    <!-- Subir nuevas imágenes (siempre disponible mientras no esté entregado) -->
+                    @if (_rep.Estado != "entregado" && _rep.Estado != "no_reparable")
+                    {
+                        <div class="@(_rep.Imagenes.Any() ? "border-top pt-3 mt-1" : "")">
+                            <label class="form-label small fw-semibold mb-2">
+                                <i class="fas fa-plus-circle me-1 text-primary"></i>Añadir fotografías
+                            </label>
+                            <InputFile multiple accept="image/*" OnChange="OnImagenesAdicionales"
+                                       class="form-control form-control-sm mb-2" />
+
+                            @if (_previews.Any())
+                            {
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    @foreach (var p in _previews)
+                                    {
+                                        <div style="width:80px;">
+                                            <img src="@p.DataUrl" alt="@p.Nombre"
+                                                 style="width:80px;height:60px;object-fit:cover;border-radius:6px;"
+                                                 class="border" />
+                                            <div class="text-truncate mt-1" style="font-size:0.6rem;color:#6b7280;">@p.Nombre</div>
+                                        </div>
+                                    }
+                                </div>
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="SubirImagenesAdicionales"
+                                        disabled="@_subiendoImagenes">
+                                    @if (_subiendoImagenes)
+                                    { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                    <i class="fas fa-upload me-1"></i>Subir @_previews.Count imagen(es)
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary ms-1"
+                                        @onclick="() => _previews.Clear()" disabled="@_subiendoImagenes">
+                                    <i class="fas fa-times me-1"></i>Limpiar
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Historial del equipo (reingresos) -->
+            @if (!string.IsNullOrEmpty(_rep.Imei) && _historial.Count > 0)
+            {
+                <div class="card shadow-sm mb-3 border-warning">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-warning bg-opacity-10">
+                        <span>
+                            <i class="fas fa-history me-2 text-warning"></i>
+                            <strong>¡Equipo reingresado!</strong> — @_historial.Count visita(s) anterior(es) con el mismo IMEI/S/N
+                        </span>
+                        <span class="badge bg-warning text-dark">@_rep.Imei</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm table-borderless align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Orden</th>
+                                    <th>Fecha entrada</th>
+                                    <th>Estado</th>
+                                    <th>Problema</th>
+                                    <th>Solución</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var h in _historial)
+                                {
+                                    <tr>
+                                        <td>
+                                            <a href="/reparaciones/@h.Id" class="fw-semibold text-decoration-none">
+                                                @h.NumeroOrden
+                                            </a>
+                                        </td>
+                                        <td class="text-muted small">@h.FechaRecepcion.ToString("dd/MM/yyyy")</td>
+                                        <td>
+                                            <span class="badge bg-@EstadoColor(h.Estado) small">@EstadoLabel(h.Estado)</span>
+                                        </td>
+                                        <td class="small text-muted" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                            title="@h.DescripcionFalla">
+                                            @h.DescripcionFalla
+                                        </td>
+                                        <td class="small text-success" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                            title="@h.Solucion">
+                                            @(string.IsNullOrEmpty(h.Solucion) ? "—" : h.Solucion)
+                                        </td>
+                                        <td class="text-end small">
+                                            @(h.Total.HasValue ? h.Total.Value.ToString("N2") + " €" : "—")
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            <!-- Repuestos / piezas usadas -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-cogs me-2"></i>Repuestos y mano de obra</span>
+                    @if (_rep.Estado != "entregado" && _rep.Estado != "no_reparable")
+                    {
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => _mostrarAddDetalle = !_mostrarAddDetalle">
+                            <i class="fas fa-plus me-1"></i>Agregar
+                        </button>
+                    }
+                </div>
+                @if (_mostrarAddDetalle)
+                {
+                    <div class="card-body border-bottom bg-light">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label small mb-1">Producto (opcional)</label>
+                                <select class="form-select form-select-sm"
+                                        @onchange="e => OnProductoDetalleChange(e)">
+                                    <option value="0">— Línea libre —</option>
+                                    @foreach (var p in _productos)
+                                    {
+                                        <option value="@p.Id">@p.Nombre</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">Descripción *</label>
+                                <input class="form-control form-control-sm" @bind="_nuevoDetalle.Descripcion" />
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label small mb-1">Cant.</label>
+                                <input class="form-control form-control-sm text-center" type="number" min="1"
+                                       @bind="_nuevoDetalle.Cantidad" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-1">Precio (€)</label>
+                                <input class="form-control form-control-sm text-end" type="number" step="0.01" min="0"
+                                       @bind="_nuevoDetalle.PrecioUnitario" />
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-sm btn-primary w-100" @onclick="AgregarDetalle" disabled="@_guardandoDetalle">
+                                    @if (_guardandoDetalle) { <span class="spinner-border spinner-border-sm"></span> }
+                                    else { <i class="fas fa-plus"></i> }
+                                </button>
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_errorDetalle))
+                        {
+                            <div class="alert alert-danger py-1 small mt-2">@_errorDetalle</div>
+                        }
+                    </div>
+                }
+                <div class="card-body p-0">
+                    <table class="table table-borderless align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Descripción</th>
+                                <th class="text-center" style="width:70px">Cant.</th>
+                                <th class="text-end" style="width:110px">Precio unit.</th>
+                                <th class="text-end" style="width:110px">Subtotal</th>
+                                <th style="width:50px"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!_rep.Detalles.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-3">Sin repuestos registrados</td>
+                                </tr>
+                            }
+                            @foreach (var d in _rep.Detalles)
+                            {
+                                <tr>
+                                    <td>@d.Descripcion</td>
+                                    <td class="text-center">@d.Cantidad</td>
+                                    <td class="text-end">@d.PrecioUnitario.ToString("N2") €</td>
+                                    <td class="text-end fw-semibold">@d.Subtotal.ToString("N2") €</td>
+                                    <td class="text-center">
+                                        @if (_rep.Estado != "entregado" && _rep.Estado != "no_reparable")
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger"
+                                                    @onclick="() => QuitarDetalle(d.Id)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Derecha: acciones de estado + totales -->
+        <div class="col-lg-4">
+            <!-- Imprimir / Documentos -->
+            <div class="card shadow-sm mb-3 @(_mostrarDocsCierre ? "border-success" : "")">
+                <div class="card-header @(_mostrarDocsCierre ? "bg-success bg-opacity-10 text-success" : "")">
+                    <i class="fas fa-print me-2"></i>Imprimir / Documentos
+                    @if (_mostrarDocsCierre)
+                    {
+                        <span class="badge bg-success ms-2">Cierre</span>
+                    }
+                </div>
+                <div class="card-body d-flex flex-column gap-2">
+
+                    @if (_mostrarDocsCierre)
+                    {
+                        <div class="alert alert-success py-2 small mb-1">
+                            <i class="fas fa-check-circle me-1"></i>
+                            Reparación cerrada. Previsualiza o imprime los documentos.
+                        </div>
+                    }
+
+                    <!-- Selector de formato -->
+                    <div class="border rounded px-3 py-2 bg-light">
+                        <div class="small fw-semibold text-muted mb-2">
+                            <i class="fas fa-ruler me-1"></i>Formato de impresión
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="radio" name="fmtRep" id="fmtRepA4"
+                                       checked="@(_formato == "a4")"
+                                       @onchange='() => _formato = "a4"' />
+                                <label class="form-check-label small" for="fmtRepA4">
+                                    <i class="fas fa-file me-1 text-primary"></i>A4
+                                </label>
+                            </div>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="radio" name="fmtRep" id="fmtRep80"
+                                       checked="@(_formato == "ticket_80mm")"
+                                       @onchange='() => _formato = "ticket_80mm"' />
+                                <label class="form-check-label small" for="fmtRep80">
+                                    <i class="fas fa-receipt me-1 text-success"></i>Ticket 80 mm
+                                </label>
+                            </div>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="radio" name="fmtRep" id="fmtRep58"
+                                       checked="@(_formato == "ticket_58mm")"
+                                       @onchange='() => _formato = "ticket_58mm"' />
+                                <label class="form-check-label small" for="fmtRep58">
+                                    <i class="fas fa-receipt me-1 text-warning"></i>Ticket 58 mm
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary w-100"
+                            @onclick='() => VerPdf(RepPdfUrl(), "Orden — " + _rep.NumeroOrden)'>
+                        <i class="fas fa-eye me-2"></i>Previsualizar orden
+                    </button>
+
+                    @if (_facturaId.HasValue)
+                    {
+                        <button class="btn btn-success w-100"
+                                @onclick='() => VerPdf(FacturaPdfUrl(), "Factura — " + _rep.NumeroOrden)'>
+                            <i class="fas fa-receipt me-2"></i>Previsualizar factura
+                        </button>
+                    }
+
+                    <button class="btn btn-outline-secondary w-100"
+                            @onclick='() => VerPdf(_apiBase + $"/api/reparaciones/{Id}/etiqueta", "Etiqueta — " + _rep.NumeroOrden)'>
+                        <i class="fas fa-qrcode me-2"></i>Etiqueta QR (90×55 mm)
+                    </button>
+
+                    <hr class="my-1" />
+
+                    <div class="d-flex gap-2">
+                        <a href="@RepPdfUrl()" target="_blank"
+                           class="btn btn-outline-secondary btn-sm flex-fill">
+                            <i class="fas fa-download me-1"></i>Descargar orden
+                        </a>
+                        @if (_facturaId.HasValue)
+                        {
+                            <a href="@FacturaPdfUrl()" target="_blank"
+                               class="btn btn-outline-success btn-sm flex-fill">
+                                <i class="fas fa-download me-1"></i>Descargar factura
+                            </a>
+                        }
+                    </div>
+
+                    <EnviarEmailBtn EmailPorDefecto="@(_rep.ClienteEmail ?? string.Empty)"
+                                    Enviando="_enviandoEmail"
+                                    OnEnviar="EnviarPdf" />
+
+                    @if (!string.IsNullOrEmpty(_rep.ClienteTelefono) && !string.IsNullOrEmpty(_empresa?.UrlPublica))
+                    {
+                        var waMsgTicket = FormatearWa(
+                               $"¡Hola {{nombre}}! Adjunto el ticket de tu reparación (Orden {{orden}}).\n🔗 Descarga tu orden: {{link_ticket}}\n{{tienda}}");
+                        <WhatsAppBtn Telefono="@_rep.ClienteTelefono"
+                                     Mensaje="@waMsgTicket"
+                                     Etiqueta="Enviar ticket por WhatsApp" />
+                    }
+                </div>
+            </div>
+
+            <!-- Totales -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header"><i class="fas fa-calculator me-2"></i>Totales</div>
+                <div class="card-body">
+                    @if (_rep.PrecioEstimado.HasValue)
+                    {
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Precio estimado</span>
+                            <span>@_rep.PrecioEstimado.Value.ToString("N2") €</span>
+                        </div>
+                    }
+                    @if (_rep.Total.HasValue)
+                    {
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Base imponible</span>
+                            <span>@_rep.BaseImponible?.ToString("N2") €</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">IVA (@_rep.PorcentajeIva.ToString("0")%)</span>
+                            <span>@_rep.ImporteIva?.ToString("N2") €</span>
+                        </div>
+                        <hr />
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="fw-bold fs-5">TOTAL</span>
+                            <span class="fw-bold fs-5 text-primary">@_rep.Total.Value.ToString("N2") €</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-muted small text-center py-2">El total se calculará al cerrar la reparación</div>
+                    }
+                </div>
+            </div>
+
+            <!-- Cambio de estado -->
+            @if (_rep.Estado != "entregado" && _rep.Estado != "no_reparable")
+            {
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header"><i class="fas fa-exchange-alt me-2"></i>Cambiar estado</div>
+                    <div class="card-body">
+
+                        <!-- Selector de estado -->
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Nuevo estado</label>
+                            <select class="form-select form-select-sm" @bind="_cambioEstado.Estado">
+                                @foreach (var e in EstadosSiguientes(_rep.Estado))
+                                {
+                                    <option value="@e">@EstadoLabel(e)</option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- Precio estimado — al diagnosticar -->
+                        @if (_cambioEstado.Estado == "diagnosticado" || _cambioEstado.Estado == "en_reparacion")
+                        {
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">
+                                    <i class="fas fa-tag me-1 text-primary"></i>Presupuesto estimado (€ sin IVA)
+                                </label>
+                                <div class="input-group input-group-sm">
+                                    <input class="form-control text-end" type="number" step="0.01" min="0"
+                                           placeholder="@(_rep.PrecioEstimado?.ToString("N2") ?? "0.00")"
+                                           @bind="_cambioEstado.PrecioEstimado" />
+                                    <span class="input-group-text">€</span>
+                                </div>
+                                <small class="text-muted">Deja vacío para mantener el actual (@(_rep.PrecioEstimado?.ToString("N2") ?? "—") €)</small>
+                            </div>
+                        }
+
+                        <!-- Fecha estimada entrega — al diagnosticar o reparar -->
+                        @if (_cambioEstado.Estado == "diagnosticado" || _cambioEstado.Estado == "en_reparacion")
+                        {
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">
+                                    <i class="fas fa-calendar me-1 text-info"></i>Fecha estimada de entrega
+                                </label>
+                                <input class="form-control form-control-sm" type="date"
+                                       @bind="_cambioEstadoFechaEstimada" />
+                            </div>
+                        }
+
+                        <!-- Técnico -->
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Técnico asignado</label>
+                            <input class="form-control form-control-sm"
+                                   placeholder="@(_rep.TecnicoAsignado ?? "Sin asignar")"
+                                   @bind="_cambioEstado.TecnicoAsignado" />
+                        </div>
+
+                        <!-- Observaciones -->
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Observaciones del técnico</label>
+                            <textarea class="form-control form-control-sm" rows="2"
+                                      @bind="_cambioEstado.ObservacionesTecnico"></textarea>
+                        </div>
+
+                        <!-- Solución aplicada — al cerrar -->
+                        @if (_cambioEstado.Estado is "reparado" or "entregado" or "no_reparable")
+                        {
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">
+                                    <i class="fas fa-wrench me-1 text-success"></i>Solución aplicada
+                                    @if (_cambioEstado.Estado != "no_reparable")
+                                    {
+                                        <span class="text-danger">*</span>
+                                    }
+                                </label>
+                                <textarea class="form-control form-control-sm" rows="3"
+                                          placeholder="Describe qué se hizo para solucionar el problema..."
+                                          @bind="_cambioEstado.Solucion"></textarea>
+                            </div>
+                        }
+
+                        <!-- Precio final — al marcar reparado o entregar -->
+                        @if (_cambioEstado.Estado is "reparado" or "entregado")
+                        {
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">
+                                    <i class="fas fa-receipt me-1 text-success"></i>Precio final (€ sin IVA)
+                                </label>
+                                <div class="input-group input-group-sm">
+                                    <input class="form-control text-end" type="number" step="0.01" min="0"
+                                           placeholder="@(_rep.PrecioEstimado?.ToString("N2") ?? "0.00")"
+                                           @bind="_cambioEstado.PrecioFinal" />
+                                    <span class="input-group-text">€</span>
+                                </div>
+                                <small class="text-muted">Se usará para generar la factura al cliente</small>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_errorEstado))
+                        {
+                            <div class="alert alert-danger py-1 small">@_errorEstado</div>
+                        }
+
+                        <button class="btn btn-primary w-100 btn-sm" @onclick="CambiarEstado"
+                                disabled="@_cambiandoEstado">
+                            @if (_cambiandoEstado)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="fas fa-check me-1"></i>Aplicar — @EstadoLabel(_cambioEstado.Estado ?? "")
+                        </button>
+                    </div>
+                </div>
+            }
+
+            <!-- Notificación al cliente -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header"><i class="fas fa-bell me-2"></i>Notificar al cliente</div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(_rep.ClienteTelefono))
+                    {
+                        <div class="text-muted small mb-2">
+                            <i class="fas fa-phone me-1"></i>@_rep.ClienteTelefono
+                        </div>
+                        <div class="d-flex flex-column gap-2">
+                            <WhatsAppBtn Telefono="@_rep.ClienteTelefono"
+                                         Mensaje="@FormatearWa(_empresa?.WaMsgEntrada)"
+                                         Etiqueta="WA — Entrada registrada" />
+                            <WhatsAppBtn Telefono="@_rep.ClienteTelefono"
+                                         Mensaje="@FormatearWa(_empresa?.WaMsgListo)"
+                                         Etiqueta="WA — Listo para recoger" />
+                            <WhatsAppBtn Telefono="@_rep.ClienteTelefono"
+                                         Mensaje="@FormatearWa(_empresa?.WaMsgRecordatorio)"
+                                         Etiqueta="WA — Recordatorio recogida" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-muted small">El cliente no tiene teléfono registrado.</div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_rep.ClienteEmail))
+                    {
+                        <hr class="my-2" />
+                        <div class="text-muted small mb-2">
+                            <i class="fas fa-envelope me-1"></i>@_rep.ClienteEmail
+                        </div>
+                        <button class="btn btn-outline-info w-100 btn-sm" @onclick="NotificarCliente" disabled="@_notificando">
+                            @if (_notificando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fas fa-paper-plane me-1"></i>Enviar email de notificación
+                        </button>
+                    }
+
+                    @if (_rep.FacturaEnviada)
+                    {
+                        <div class="alert alert-success py-1 small mt-2 text-center">
+                            <i class="fas fa-check-circle me-1"></i>Factura enviada
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<PdfViewerModal PdfUrl="@_pdfUrl" Titulo="@_pdfTitulo" OnClose='() => _pdfUrl = string.Empty' />
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "autoImprimir")]
+    public int AutoImprimir { get; set; }
+
+    ReparacionDto? _rep;
+    EmpresaDto?    _empresa;
+    List<ProductoDto>        _productos = new();
+    List<ClienteDto>         _clientes  = new();
+    string _formato = "";   // "" = usar configuración global
+    List<HistorialEquipoDto> _historial = new();
+    bool _cargando = true;
+    bool _enviandoEmail;
+    string _apiBase   = string.Empty;
+    string _pdfUrl    = string.Empty;
+    string _pdfTitulo = string.Empty;
+
+    void VerPdf(string url, string titulo) { _pdfUrl = url; _pdfTitulo = titulo; }
+    bool _mostrarAddDetalle;
+    bool _guardandoDetalle, _cambiandoEstado, _notificando;
+
+    string _errorDetalle = string.Empty, _errorEstado = string.Empty;
+
+    AddReparacionDetalleDto   _nuevoDetalle = new() { Cantidad = 1 };
+    UpdateReparacionEstadoDto _cambioEstado = new();
+    DateTime? _cambioEstadoFechaEstimada;
+
+    // ── Edición ──────────────────────────────────────────────────
+    bool _editando;
+    bool _guardandoEdit;
+    string _errorEdit = string.Empty;
+    UpdateReparacionDto _editDto = new();
+    DateTime? _editFechaEstimada;
+
+    // ── Imágenes ─────────────────────────────────────────────────
+    record ImagePreview(string Nombre, string DataUrl, byte[] Data);
+    List<ImagePreview> _previews = new();
+    bool _subiendoImagenes;
+    int  _eliminandoImagen;
+
+    // ── Auto-print (flag pendiente hasta que los datos carguen) ──
+    bool _autoImprimirPendiente;
+
+    // ── Factura vinculada (se carga al cerrar la reparación) ──────
+    int? _facturaId;
+    bool _mostrarDocsCierre;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _apiBase  = (Config["ApiBaseUrl"] ?? "http://localhost:5000").TrimEnd('/');
+        _rep      = await Svc.GetByIdAsync(Id);
+        if (_rep == null) { Nav.NavigateTo("/reparaciones"); return; }
+        _empresa  = await EmpresaSvc.GetAsync();
+        _formato  = _empresa?.TicketFormato ?? "a4";
+        _productos = await ProductoSvc.GetAllAsync();
+        _clientes  = await ClienteSvc.GetAllAsync();
+        _cambioEstado.Estado = EstadosSiguientes(_rep.Estado).FirstOrDefault() ?? _rep.Estado;
+        if (!string.IsNullOrEmpty(_rep.Imei))
+            _historial = await Svc.GetHistorialEquipoAsync(Id);
+        _cargando = false;
+
+        // Cargar factura si la reparación ya está cerrada
+        if (_rep.Estado == "reparado" || _rep.Estado == "entregado")
+        {
+            _facturaId = await Svc.GetFacturaIdAsync(Id);
+            _mostrarDocsCierre = true;
+        }
+
+        // Marcar auto-print pendiente DESPUÉS de cargar datos
+        if (AutoImprimir == 1)
+            _autoImprimirPendiente = true;
+    }
+
+    void IniciarEdicion()
+    {
+        if (_rep == null) return;
+        _editDto = new UpdateReparacionDto
+        {
+            ClienteId        = _rep.ClienteId,
+            Dispositivo      = _rep.Dispositivo,
+            Marca            = _rep.Marca,
+            Modelo           = _rep.Modelo,
+            Imei             = _rep.Imei,
+            DescripcionFalla = _rep.DescripcionFalla,
+            Prioridad        = _rep.Prioridad,
+            PrecioEstimado   = _rep.PrecioEstimado,
+            TecnicoAsignado  = _rep.TecnicoAsignado,
+        };
+        _editFechaEstimada = _rep.FechaEstimadaEntrega;
+        _errorEdit = string.Empty;
+        _editando  = true;
+    }
+
+    async Task GuardarEdicion()
+    {
+        _errorEdit = string.Empty;
+        if (_editDto.ClienteId == 0) { _errorEdit = "Selecciona un cliente."; return; }
+        if (string.IsNullOrWhiteSpace(_editDto.Dispositivo)) { _errorEdit = "Selecciona el tipo de dispositivo."; return; }
+        if (string.IsNullOrWhiteSpace(_editDto.DescripcionFalla)) { _errorEdit = "La descripción de la falla es obligatoria."; return; }
+
+        _editDto.FechaEstimadaEntrega = _editFechaEstimada;
+        _guardandoEdit = true;
+        var (ok, msg, data) = await Svc.UpdateAsync(Id, _editDto);
+        _guardandoEdit = false;
+
+        if (ok)
+        {
+            _rep     = data ?? await Svc.GetByIdAsync(Id);
+            _editando = false;
+            Notif.Success("Orden de reparación actualizada correctamente.");
+        }
+        else _errorEdit = msg;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Disparar auto-print cuando los datos ya están disponibles
+        // (no en firstRender porque los datos aún no han cargado)
+        if (_autoImprimirPendiente && _rep != null)
+        {
+            _autoImprimirPendiente = false;
+            VerPdf(_apiBase + $"/api/reparaciones/{Id}/pdf",
+                   "Orden de reparación — " + _rep.NumeroOrden);
+            await InvokeAsync(StateHasChanged);
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    void OnProductoDetalleChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var pid) && pid > 0)
+        {
+            var p = _productos.FirstOrDefault(x => x.Id == pid);
+            if (p != null)
+            {
+                _nuevoDetalle.ProductoId     = p.Id;
+                _nuevoDetalle.Descripcion    = p.Nombre;
+                _nuevoDetalle.PrecioUnitario = p.PrecioVenta;
+            }
+        }
+        else
+        {
+            _nuevoDetalle.ProductoId = null;
+        }
+    }
+
+    async Task AgregarDetalle()
+    {
+        _errorDetalle = string.Empty;
+        if (string.IsNullOrWhiteSpace(_nuevoDetalle.Descripcion)) { _errorDetalle = "La descripción es obligatoria."; return; }
+        if (_nuevoDetalle.PrecioUnitario <= 0) { _errorDetalle = "El precio debe ser mayor a 0."; return; }
+
+        _guardandoDetalle = true;
+        var (ok, msg) = await Svc.AddDetalleAsync(Id, _nuevoDetalle);
+        _guardandoDetalle = false;
+
+        if (ok)
+        {
+            Notif.Success("Repuesto agregado.");
+            _rep = await Svc.GetByIdAsync(Id);
+            _nuevoDetalle = new AddReparacionDetalleDto { Cantidad = 1 };
+            _mostrarAddDetalle = false;
+        }
+        else _errorDetalle = msg;
+    }
+
+    async Task QuitarDetalle(int detalleId)
+    {
+        var (ok, msg) = await Svc.RemoveDetalleAsync(Id, detalleId);
+        if (ok) { Notif.Success("Repuesto eliminado."); _rep = await Svc.GetByIdAsync(Id); }
+        else Notif.Error(msg);
+    }
+
+    async Task CambiarEstado()
+    {
+        _errorEstado = string.Empty;
+        _cambioEstado.FechaEstimadaEntrega = _cambioEstadoFechaEstimada;
+        _cambiandoEstado = true;
+        var (ok, msg) = await Svc.UpdateEstadoAsync(Id, _cambioEstado);
+        _cambiandoEstado = false;
+
+        if (ok)
+        {
+            Notif.Success("Estado actualizado correctamente.");
+            _rep = await Svc.GetByIdAsync(Id);
+            if (_rep != null)
+            {
+                _cambioEstadoFechaEstimada = null;
+                _cambioEstado = new UpdateReparacionEstadoDto
+                {
+                    Estado = EstadosSiguientes(_rep.Estado).FirstOrDefault() ?? _rep.Estado
+                };
+                if (!string.IsNullOrEmpty(_rep.Imei))
+                    _historial = await Svc.GetHistorialEquipoAsync(Id);
+
+                // Al cerrar la reparación: mostrar ticket y cargar factura
+                if (_rep.Estado == "reparado" || _rep.Estado == "entregado")
+                {
+                    _facturaId = await Svc.GetFacturaIdAsync(Id);
+                    _mostrarDocsCierre = true;
+                    VerPdf(_apiBase + $"/api/reparaciones/{Id}/pdf",
+                           "Orden de reparación — " + _rep.NumeroOrden);
+                }
+            }
+        }
+        else _errorEstado = msg;
+    }
+
+    async Task OnImagenesAdicionales(InputFileChangeEventArgs e)
+    {
+        _previews.Clear();
+        const long maxSize = 10 * 1024 * 1024;
+        foreach (var file in e.GetMultipleFiles(30))
+        {
+            if (!file.ContentType.StartsWith("image/")) continue;
+            try
+            {
+                using var ms = new MemoryStream();
+                await using var stream = file.OpenReadStream(maxSize);
+                await stream.CopyToAsync(ms);
+                var bytes   = ms.ToArray();
+                var dataUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(bytes)}";
+                _previews.Add(new ImagePreview(file.Name, dataUrl, bytes));
+            }
+            catch { }
+        }
+    }
+
+    async Task SubirImagenesAdicionales()
+    {
+        if (!_previews.Any()) return;
+        _subiendoImagenes = true;
+        var archivos = _previews.Select(p => (p.Nombre, p.Data));
+        var (ok, msg, _) = await Svc.SubirImagenesAsync(Id, archivos);
+        _subiendoImagenes = false;
+        _previews.Clear();
+        if (ok) { Notif.Success("Imágenes subidas correctamente."); _rep = await Svc.GetByIdAsync(Id); }
+        else Notif.Error(msg);
+    }
+
+    async Task EliminarImagen(int imagenId)
+    {
+        _eliminandoImagen = imagenId;
+        var (ok, msg) = await Svc.EliminarImagenAsync(Id, imagenId);
+        _eliminandoImagen = 0;
+        if (ok) { Notif.Success("Fotografía eliminada."); _rep = await Svc.GetByIdAsync(Id); }
+        else Notif.Error(msg);
+    }
+
+    async Task EnviarPdf(string dest)
+    {
+        _enviandoEmail = true;
+        var (ok, msg) = await Svc.EnviarPdfAsync(Id, dest);
+        _enviandoEmail = false;
+        if (ok) Notif.Success(msg);
+        else Notif.Error(msg);
+    }
+
+    async Task NotificarCliente()
+    {
+        _notificando = true;
+        var (ok, msg) = await Svc.NotificarAsync(Id);
+        _notificando = false;
+        if (ok) Notif.Success("Notificación enviada al cliente.");
+        else Notif.Error(msg);
+    }
+
+    string FormatearWa(string? template)
+    {
+        if (string.IsNullOrEmpty(template) || _rep == null) return string.Empty;
+        var urlPublica  = _empresa?.UrlPublica?.TrimEnd('/');
+        var linkTicket  = string.IsNullOrEmpty(urlPublica) ? "" : $"{urlPublica}/api/reparaciones/{Id}/pdf";
+        return template
+            .Replace("{nombre}",      _rep.ClienteNombreCompleto ?? "")
+            .Replace("{dispositivo}", $"{_rep.Marca} {_rep.Modelo}".Trim())
+            .Replace("{orden}",       _rep.NumeroOrden ?? "")
+            .Replace("{tienda}",      _empresa?.Nombre ?? "CellShop")
+            .Replace("{total}",       _rep.Total?.ToString("N2") ?? "")
+            .Replace("{estado}",      EstadoLabel(_rep.Estado))
+            .Replace("{link_ticket}", linkTicket);
+    }
+
+    string RepPdfUrl(string path = "") =>
+        _apiBase + $"/api/reparaciones/{Id}/{(string.IsNullOrEmpty(path) ? "pdf" : path)}" +
+        (string.IsNullOrEmpty(_formato) ? "" : $"?formato={_formato}");
+
+    string FacturaPdfUrl() =>
+        _apiBase + $"/api/facturas/{_facturaId}/pdf" +
+        (string.IsNullOrEmpty(_formato) ? "" : $"?formato={_formato}");
+
+    static string[] EstadosSiguientes(string actual) =>
+        new[] { "recibido", "diagnosticado", "en_reparacion", "reparado", "no_reparable", "entregado" }
+            .Where(e => e != actual)
+            .ToArray();
+
+    static string EstadoLabel(string e) => e switch
+    {
+        "recibido"      => "Recibido",
+        "diagnosticado" => "Diagnosticado",
+        "en_reparacion" => "En reparación",
+        "reparado"      => "Reparado",
+        "entregado"     => "Entregado",
+        "no_reparable"  => "No reparable",
+        _               => e
+    };
+
+    static string EstadoColor(string e) => e switch
+    {
+        "recibido"      => "secondary",
+        "diagnosticado" => "info",
+        "en_reparacion" => "warning",
+        "reparado"      => "primary",
+        "entregado"     => "success",
+        "no_reparable"  => "danger",
+        _               => "secondary"
+    };
+
+    static string PrioridadColor(string p) => p switch
+    {
+        "urgente" => "danger",
+        "alta"    => "warning",
+        "normal"  => "primary",
+        "baja"    => "secondary",
+        _         => "secondary"
+    };
+}

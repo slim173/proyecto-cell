@@ -1,0 +1,136 @@
+@page "/compras"
+@rendermode InteractiveServer
+@inject CompraApiService Svc
+@inject NavigationManager Nav
+
+<PageTitle>Compras — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-shopping-cart me-2 text-primary"></i>Compras a proveedores</h4>
+    <a href="/compras/nueva" class="btn btn-primary btn-sm">
+        <i class="fas fa-plus me-1"></i>Nueva compra
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <input class="form-control form-control-sm" placeholder="Buscar por proveedor o número..."
+                       @bind="_busqueda" @bind:event="oninput" />
+            </div>
+            <div class="col-auto">
+                @foreach (var e in new[] { "pendiente", "recibida", "parcial", "cancelada" })
+                {
+                    <button class="btn btn-sm me-1 @((_filtroEstado == e) ? "btn-primary" : "btn-outline-secondary")"
+                            @onclick="() => { _filtroEstado = _filtroEstado == e ? null : e; }">
+                        @EstadoLabel(e)
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    var lista = Filtradas();
+    if (!lista.Any())
+    {
+        <div class="text-center text-muted py-5">
+            <i class="fas fa-shopping-cart fa-3x mb-3 opacity-25"></i>
+            <p>No hay compras registradas.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>N° Compra</th>
+                            <th>Proveedor</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
+                            <th class="text-end">Total</th>
+                            <th class="text-center">Líneas</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in lista)
+                        {
+                            <tr>
+                                <td><strong>@c.NumeroCompra</strong></td>
+                                <td>@c.ProveedorNombre</td>
+                                <td><small>@c.Fecha.ToString("dd/MM/yyyy")</small></td>
+                                <td>
+                                    <span class="badge bg-@EstadoColor(c.Estado)">@EstadoLabel(c.Estado)</span>
+                                </td>
+                                <td class="text-end fw-semibold">@c.Total.ToString("N2") €</td>
+                                <td class="text-center">@c.Detalles.Count</td>
+                                <td class="text-end">
+                                    <a href="/compras/@c.Id" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="text-muted small mt-2">@lista.Count compra(s) — Total: @lista.Sum(c => c.Total).ToString("N2") €</div>
+    }
+}
+
+@code {
+    List<CompraDto> _compras = new();
+    bool _cargando = true;
+    string _busqueda = string.Empty;
+    string? _filtroEstado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _compras = await Svc.GetAllAsync();
+        _cargando = false;
+    }
+
+    List<CompraDto> Filtradas()
+    {
+        var q = _compras.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_busqueda))
+        {
+            var b = _busqueda.ToLower();
+            q = q.Where(c =>
+                c.NumeroCompra.Contains(b, StringComparison.OrdinalIgnoreCase) ||
+                (c.ProveedorNombre ?? "").Contains(b, StringComparison.OrdinalIgnoreCase));
+        }
+        if (!string.IsNullOrEmpty(_filtroEstado))
+            q = q.Where(c => c.Estado == _filtroEstado);
+
+        return q.OrderByDescending(c => c.Fecha).ToList();
+    }
+
+    static string EstadoLabel(string e) => e switch
+    {
+        "pendiente"  => "Pendiente",
+        "recibida"   => "Recibida",
+        "parcial"    => "Parcial",
+        "cancelada"  => "Cancelada",
+        _            => e
+    };
+
+    static string EstadoColor(string e) => e switch
+    {
+        "pendiente" => "warning",
+        "recibida"  => "success",
+        "parcial"   => "info",
+        "cancelada" => "danger",
+        _           => "secondary"
+    };
+}

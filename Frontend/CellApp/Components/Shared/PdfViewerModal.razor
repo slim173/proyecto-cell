@@ -1,0 +1,75 @@
+@if (!string.IsNullOrEmpty(PdfUrl))
+{
+    <!-- Overlay pantalla completa -->
+    <div style="position:fixed;inset:0;z-index:1060;display:flex;flex-direction:column;overflow:hidden;"
+         @onkeydown="OnKeyDown" tabindex="-1">
+
+        <!-- Barra superior -->
+        <div style="flex-shrink:0;background:#1e2430;color:#fff;
+                    padding:8px 16px;display:flex;align-items:center;gap:10px;
+                    border-bottom:1px solid rgba(255,255,255,.15);">
+            <i class="fas fa-file-pdf text-danger" style="font-size:1rem;"></i>
+            <span style="flex:1;font-size:.875rem;font-weight:500;
+                         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                @Titulo
+            </span>
+            <a href="@PdfUrl" target="_blank" rel="noopener"
+               class="btn btn-sm btn-outline-light" style="white-space:nowrap;">
+                <i class="fas fa-external-link-alt me-1"></i>Nueva pestaña
+            </a>
+            <a href="@PdfUrl" download
+               class="btn btn-sm btn-outline-light" style="white-space:nowrap;">
+                <i class="fas fa-download me-1"></i>Descargar
+            </a>
+            <button class="btn btn-sm btn-danger" @onclick="Cerrar" title="Cerrar (Esc)">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Contenedor del PDF — posición relativa para anclar el object/iframe -->
+        <div style="flex:1;min-height:0;position:relative;background:#525659;">
+
+            @* <object> es el visor más compatible; fallback en <iframe>, luego botones *@
+            <object data="@PdfUrl"
+                    type="application/pdf"
+                    style="position:absolute;inset:0;width:100%;height:100%;border:none;display:block;">
+
+                <iframe src="@PdfUrl"
+                        title="@Titulo"
+                        style="position:absolute;inset:0;width:100%;height:100%;border:none;display:block;">
+
+                    <!-- Fallback para navegadores sin soporte de PDF inline -->
+                    <div style="position:absolute;inset:0;display:flex;flex-direction:column;
+                                align-items:center;justify-content:center;color:#fff;
+                                gap:14px;padding:40px;text-align:center;">
+                        <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
+                        <p class="mb-0 fs-5">Tu navegador no puede mostrar PDFs en línea.</p>
+                        <div class="d-flex gap-2 flex-wrap justify-content-center mt-2">
+                            <a href="@PdfUrl" target="_blank" class="btn btn-primary">
+                                <i class="fas fa-external-link-alt me-1"></i>Abrir en nueva pestaña
+                            </a>
+                            <a href="@PdfUrl" download class="btn btn-outline-light">
+                                <i class="fas fa-download me-1"></i>Descargar
+                            </a>
+                        </div>
+                    </div>
+
+                </iframe>
+            </object>
+
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string        PdfUrl  { get; set; } = string.Empty;
+    [Parameter] public string        Titulo  { get; set; } = "Vista previa";
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    async Task Cerrar() => await OnClose.InvokeAsync();
+
+    async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Cerrar();
+    }
+}

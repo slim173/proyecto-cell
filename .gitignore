@@ -1,0 +1,43 @@
+# ── Compilación .NET ──────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+*.rsuser
+.vs/
+
+# ── Binarios y distribuciones ─────────────────────────────
+*.exe
+*.dll
+*.pdb
+*.zip
+*.nupkg
+dist/
+dist2/
+output/
+Offline/
+
+# ── Publicación / distribución ────────────────────────────
+Instalador/dist/
+Instalador/output/
+
+# ── Archivos generados en runtime ─────────────────────────
+Frontend/CellApp/wwwroot/facturas/
+Frontend/CellApp/wwwroot/reparaciones/
+Frontend/CellApp/wwwroot/logos/
+Backend/CellApi/wwwroot/
+
+# ── Logs ──────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Android build ─────────────────────────────────────────
+Android/CellShopAndroid/.gradle/
+Android/CellShopAndroid/build/
+Android/CellShopAndroid/app/build/
+Android/CellShopAndroid/local.properties
+
+# ── Sistema operativo ─────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

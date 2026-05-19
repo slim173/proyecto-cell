@@ -1,0 +1,157 @@
+@page "/ventas"
+@rendermode InteractiveServer
+@inject VentaApiService Svc
+@inject NotificacionService Notif
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Ventas — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-cash-register me-2 text-primary"></i>Ventas</h4>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-success btn-sm" @onclick="ExportarCsv" disabled="@_exportando">
+            @if (_exportando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="fas fa-file-csv me-1"></i>Exportar CSV
+        </button>
+        <a href="/ventas/nueva" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Nueva venta
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input class="form-control" placeholder="Buscar por nº venta o cliente..."
+                           @bind="_busqueda" @bind:event="oninput" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_filtroEstado">
+                    <option value="">Todos los estados</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="cobrada">Cobrada</option>
+                    <option value="anulada">Anulada</option>
+                </select>
+            </div>
+            <div class="col-md-3 text-end">
+                <small class="text-muted">@VentasFiltradas.Count() ventas · Total: @VentasFiltradas.Sum(v => v.Total).ToString("N2") €</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Nº Venta</th><th>Cliente</th><th>Fecha</th>
+                        <th class="text-end">Base imp.</th><th class="text-end">IVA 21%</th>
+                        <th class="text-end">Total</th><th>Estado</th><th>Factura</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var v in VentasFiltradas)
+                    {
+                        <tr>
+                            <td><code class="text-primary">@v.NumeroVenta</code></td>
+                            <td>@v.ClienteNombreCompleto</td>
+                            <td>@v.Fecha.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td class="text-end">@v.BaseImponible.ToString("N2") €</td>
+                            <td class="text-end text-muted">@v.ImporteIva.ToString("N2") €</td>
+                            <td class="text-end fw-bold">@v.Total.ToString("N2") €</td>
+                            <td><span class="badge-estado estado-@v.Estado">@v.Estado</span></td>
+                            <td>
+                                @if (v.FacturaEnviada)
+                                {
+                                    <span class="badge bg-success"><i class="fas fa-check me-1"></i>Enviada</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-muted">Pendiente</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a href="/ventas/@v.Id" class="btn btn-sm btn-outline-primary" title="Ver detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    @if (!v.FacturaEnviada && v.Estado == "cobrada")
+                                    {
+                                        <button class="btn btn-sm btn-outline-success" title="Enviar factura"
+                                                @onclick="() => EnviarFactura(v.Id)">
+                                            <i class="fas fa-envelope"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (!VentasFiltradas.Any())
+                    {
+                        <tr><td colspan="9" class="text-center text-muted py-4">No se encontraron ventas.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    List<VentaDto> _ventas = new();
+    bool _cargando = true;
+    bool _exportando;
+    string _busqueda = string.Empty;
+    string _filtroEstado = string.Empty;
+
+    IEnumerable<VentaDto> VentasFiltradas => _ventas
+        .Where(v => string.IsNullOrEmpty(_filtroEstado) || v.Estado == _filtroEstado)
+        .Where(v => string.IsNullOrEmpty(_busqueda) ||
+            v.NumeroVenta.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+            (v.ClienteNombreCompleto?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    protected override async Task OnInitializedAsync() => await Cargar();
+
+    async Task Cargar()
+    {
+        _cargando = true;
+        _ventas = await Svc.GetAllAsync();
+        _cargando = false;
+    }
+
+    async Task EnviarFactura(int id)
+    {
+        var (ok, msg) = await Svc.EnviarFacturaAsync(id);
+        if (ok) { Notif.Success(msg); await Cargar(); }
+        else Notif.Error(msg);
+    }
+
+    async Task ExportarCsv()
+    {
+        _exportando = true;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("N° Venta;Cliente;Fecha;Base imponible;IVA;Total;Estado;Método pago;Factura");
+        foreach (var v in VentasFiltradas)
+            sb.AppendLine(string.Join(";",
+                v.NumeroVenta,
+                v.ClienteNombreCompleto?.Replace(";", " ") ?? "",
+                v.Fecha.ToString("dd/MM/yyyy HH:mm"),
+                v.BaseImponible.ToString("N2"),
+                v.ImporteIva.ToString("N2"),
+                v.Total.ToString("N2"),
+                v.Estado,
+                v.MetodoPago ?? "",
+                v.FacturaEnviada ? "Enviada" : "Pendiente"));
+        await JS.InvokeVoidAsync("descargarCsv", sb.ToString(), $"ventas_{DateTime.Today:yyyyMMdd}.csv");
+        _exportando = false;
+    }
+}

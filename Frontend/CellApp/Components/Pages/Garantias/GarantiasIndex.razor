@@ -1,0 +1,288 @@
+@page "/garantias"
+@rendermode InteractiveServer
+@inject GarantiaApiService Svc
+@inject ClienteApiService ClienteSvc
+@inject NotificacionService Notif
+
+<PageTitle>Garantías — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-shield-alt me-2 text-primary"></i>Garantías</h4>
+    <button class="btn btn-primary btn-sm" @onclick="AbrirModal">
+        <i class="fas fa-plus me-1"></i>Nueva garantía
+    </button>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input class="form-control" placeholder="Buscar por cliente o producto..."
+                           @bind="_busqueda" @bind:event="oninput" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_filtroEstado">
+                    <option value="">Todos los estados</option>
+                    <option value="activa">Activa</option>
+                    <option value="reclamada">Reclamada</option>
+                    <option value="vencida">Vencida</option>
+                    <option value="anulada">Anulada</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_filtroTipo">
+                    <option value="">Todos los tipos</option>
+                    <option value="venta">Venta</option>
+                    <option value="reparacion">Reparación</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <small class="text-muted">@GarantiasFiltradas.Count() garantías</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Nº Garantía</th>
+                        <th>Cliente</th>
+                        <th>Producto / Descripción</th>
+                        <th>Tipo</th>
+                        <th class="text-center">Inicio</th>
+                        <th class="text-center">Fin</th>
+                        <th class="text-center">Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in GarantiasFiltradas)
+                    {
+                        <tr>
+                            <td><code class="small">@(g.NumeroGarantia ?? $"G-{g.Id}")</code></td>
+                            <td>
+                                <div class="fw-semibold">@(g.ClienteNombreCompleto ?? "—")</div>
+                                @if (!string.IsNullOrEmpty(g.ClienteTelefono))
+                                {
+                                    <small class="text-muted">@g.ClienteTelefono</small>
+                                }
+                            </td>
+                            <td>
+                                <span class="text-truncate d-block" style="max-width:200px" title="@g.ProductoDescripcion">
+                                    @g.ProductoDescripcion
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge @(g.Tipo=="reparacion"?"bg-info text-dark":"bg-primary")">
+                                    @(g.Tipo == "reparacion" ? "Reparación" : "Venta")
+                                </span>
+                            </td>
+                            <td class="text-center small">@g.FechaInicio.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center small">
+                                @g.FechaFin.ToString("dd/MM/yyyy")
+                                @if (!g.Vencida && g.DiasRestantes <= 30)
+                                {
+                                    <div class="text-warning small">@g.DiasRestantes d restantes</div>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <span class="badge @BadgeEstado(g)">@EstadoLabel(g)</span>
+                            </td>
+                            <td>
+                                @if (g.Estado == "activa")
+                                {
+                                    <button class="btn btn-sm btn-outline-warning"
+                                            title="Marcar como reclamada"
+                                            @onclick='() => CambiarEstado(g, "reclamada")'>
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!GarantiasFiltradas.Any())
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-4">No hay garantías registradas.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<!-- Modal nueva garantía -->
+@if (_mostrarModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-shield-alt me-2"></i>Nueva garantía</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Tipo <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_nuevo.Tipo">
+                            <option value="venta">Venta</option>
+                            <option value="reparacion">Reparación</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">ID de referencia (Venta/Reparación) <span class="text-danger">*</span></label>
+                        <input class="form-control" type="number" @bind="_nuevo.ReferenciaId" placeholder="Ej: 42" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Cliente <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_nuevo.ClienteId">
+                            <option value="0">— Seleccionar —</option>
+                            @foreach (var c in _clientes)
+                            {
+                                <option value="@c.Id">@c.NombreCompleto</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Descripción del producto/servicio <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_nuevo.ProductoDescripcion"
+                               placeholder="Ej: iPhone 13 - Cambio de batería" />
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Fecha inicio</label>
+                            <input class="form-control" type="date"
+                                   value="@_nuevo.FechaInicio.ToString("yyyy-MM-dd")"
+                                   @onchange="e => _nuevo.FechaInicio = DateTime.Parse(e.Value!.ToString()!)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Meses de garantía</label>
+                            <input class="form-control" type="number" min="1" max="60" @bind="_nuevo.Meses" />
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label fw-semibold">Observaciones</label>
+                        <textarea class="form-control" rows="2" @bind="_nuevo.Observaciones"></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0 py-2 small">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                    <button class="btn btn-primary" @onclick="Guardar" disabled="@_guardando">
+                        @if (_guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="fas fa-save me-1"></i>Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    List<GarantiaDto> _garantias = new();
+    List<ClienteDto>  _clientes  = new();
+    bool    _cargando = true;
+    string  _busqueda = string.Empty;
+    string  _filtroEstado = string.Empty;
+    string  _filtroTipo   = string.Empty;
+
+    bool              _mostrarModal;
+    CreateGarantiaDto _nuevo = new();
+    bool              _guardando;
+    string            _modalError = string.Empty;
+
+    IEnumerable<GarantiaDto> GarantiasFiltradas => _garantias
+        .Where(g => string.IsNullOrEmpty(_filtroEstado) || g.Estado == _filtroEstado)
+        .Where(g => string.IsNullOrEmpty(_filtroTipo)   || g.Tipo   == _filtroTipo)
+        .Where(g => string.IsNullOrEmpty(_busqueda)     ||
+            (g.ClienteNombreCompleto?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            g.ProductoDescripcion.Contains(_busqueda, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        await Task.WhenAll(
+            Svc.GetAllAsync().ContinueWith(t => _garantias = t.Result),
+            ClienteSvc.GetAllAsync().ContinueWith(t => _clientes = t.Result)
+        );
+        _cargando = false;
+    }
+
+    async Task CargarAsync()
+    {
+        _cargando = true;
+        _garantias = await Svc.GetAllAsync();
+        _cargando = false;
+    }
+
+    async Task CargarClientesAsync()
+    {
+        _clientes = await ClienteSvc.GetAllAsync();
+    }
+
+    void AbrirModal()
+    {
+        _nuevo      = new CreateGarantiaDto { FechaInicio = DateTime.Today };
+        _modalError = string.Empty;
+        _mostrarModal = true;
+    }
+
+    void CerrarModal() => _mostrarModal = false;
+
+    async Task Guardar()
+    {
+        _modalError = string.Empty;
+        if (_nuevo.ClienteId == 0) { _modalError = "Selecciona un cliente."; return; }
+        if (_nuevo.ReferenciaId == 0) { _modalError = "Introduce el ID de referencia."; return; }
+        if (string.IsNullOrWhiteSpace(_nuevo.ProductoDescripcion)) { _modalError = "Describe el producto."; return; }
+
+        _guardando = true;
+        var (ok, msg) = await Svc.CreateAsync(_nuevo);
+        _guardando = false;
+
+        if (ok)
+        {
+            Notif.Success("Garantía registrada correctamente.");
+            CerrarModal();
+            await CargarAsync();
+        }
+        else _modalError = msg;
+    }
+
+    async Task CambiarEstado(GarantiaDto g, string estado)
+    {
+        var ok = await Svc.UpdateEstadoAsync(g.Id, estado);
+        if (ok) { Notif.Success("Estado actualizado."); await CargarAsync(); }
+        else Notif.Error("Error al actualizar el estado.");
+    }
+
+    string BadgeEstado(GarantiaDto g) => g.Estado switch
+    {
+        "activa"    => g.Vencida ? "bg-warning text-dark" : "bg-success",
+        "reclamada" => "bg-danger",
+        "anulada"   => "bg-secondary",
+        _           => "bg-light text-dark"
+    };
+
+    string EstadoLabel(GarantiaDto g) => g.Estado switch
+    {
+        "activa"    => g.Vencida ? "Vencida" : "Activa",
+        "reclamada" => "Reclamada",
+        "vencida"   => "Vencida",
+        "anulada"   => "Anulada",
+        _           => g.Estado
+    };
+}

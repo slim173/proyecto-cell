@@ -1,0 +1,269 @@
+@page "/productos"
+@rendermode InteractiveServer
+@inject ProductoApiService Svc
+@inject NotificacionService Notif
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject AuthStateService AuthState
+
+<PageTitle>Productos — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h4><i class="fas fa-box me-2 text-primary"></i>Productos</h4>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        @if (_seleccionados.Any())
+        {
+            <select class="form-select form-select-sm" @bind="_formatoEtiqueta" style="width:auto">
+                <option value="50x30">50×30 mm</option>
+                <option value="40x20">40×20 mm</option>
+                <option value="30x20">30×20 mm</option>
+            </select>
+            <button class="btn btn-sm btn-success" @onclick="ImprimirEtiquetas" disabled="@_imprimiendo">
+                @if (_imprimiendo) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                <i class="fas fa-tags me-1"></i>Etiquetas (@_seleccionados.Count)
+            </button>
+        }
+        <button class="btn btn-outline-success btn-sm" @onclick="ExportarCsv">
+            <i class="fas fa-file-csv me-1"></i>Exportar CSV
+        </button>
+        @if (AuthState.IsAdmin)
+        {
+            <a href="/productos/nuevo" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus me-1"></i>Nuevo producto
+            </a>
+        }
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input class="form-control" placeholder="Buscar por código o nombre..."
+                           @bind="_busqueda" @bind:event="oninput" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_filtroActivo" @bind:after="CargarAsync">
+                    <option value="true">Solo activos</option>
+                    <option value="false">Todos</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" @bind="_soloStockBajo" id="chkStock" />
+                    <label class="form-check-label text-danger" for="chkStock">Stock bajo</label>
+                </div>
+            </div>
+            <div class="col-md-2 text-end">
+                <small class="text-muted">@ProductosFiltrados.Count() productos</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:36px">
+                            <input type="checkbox" class="form-check-input"
+                                   @onchange="ToggleTodos"
+                                   checked="@(ProductosFiltrados.Any() && _seleccionados.Count >= ProductosFiltrados.Count())" />
+                        </th>
+                        <th>Código</th><th>Nombre</th><th>Categoría</th>
+                        <th class="text-end">Precio venta</th><th class="text-end">Costo</th>
+                        <th class="text-center">Stock</th><th class="text-center">Mín.</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in ProductosFiltrados)
+                    {
+                        <tr class="@(p.StockBajo ? "stock-bajo" : "")">
+                            <td>
+                                <input type="checkbox" class="form-check-input"
+                                       checked="@_seleccionados.Contains(p.Id)"
+                                       @onchange="e => ToggleSeleccion(p.Id, (bool)(e.Value ?? false))" />
+                            </td>
+                            <td><code>@(p.Codigo ?? "—")</code></td>
+                            <td>
+                                <div class="fw-semibold">@p.Nombre</div>
+                                @if (!string.IsNullOrEmpty(p.Descripcion))
+                                {
+                                    <small class="text-muted">@p.Descripcion[..Math.Min(50, p.Descripcion.Length)]</small>
+                                }
+                            </td>
+                            <td><span class="badge bg-light text-dark border">@(p.CategoriaNombre ?? "—")</span></td>
+                            <td class="text-end fw-semibold">@p.PrecioVenta.ToString("N2") €</td>
+                            <td class="text-end">@p.Costo.ToString("N2") €</td>
+                            <td class="text-center">
+                                <span class="badge @(p.StockBajo ? "bg-danger" : "bg-success")">@p.Stock</span>
+                            </td>
+                            <td class="text-center text-muted">@p.StockMinimo</td>
+                            <td>
+                                <div class="d-flex gap-1 justify-content-end">
+                                    @if (AuthState.IsAdmin)
+                                    {
+                                        <a href="/productos/@p.Id/editar" class="btn btn-sm btn-outline-primary" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    }
+                                    <button class="btn btn-sm btn-outline-secondary" title="Ajustar stock"
+                                            @onclick="() => AbrirAjusteStock(p)">
+                                        <i class="fas fa-boxes"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (!ProductosFiltrados.Any())
+                    {
+                        <tr><td colspan="9" class="text-center text-muted py-4">No se encontraron productos.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<!-- Modal ajuste de stock -->
+@if (_productoAjuste != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-boxes me-2"></i>Ajustar stock</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarAjuste"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">Producto: <strong>@_productoAjuste.Nombre</strong></p>
+                    <div class="mb-3">
+                        <label class="form-label">Stock actual</label>
+                        <input class="form-control" value="@_productoAjuste.Stock" disabled />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nuevo stock <span class="text-danger">*</span></label>
+                        <input class="form-control" type="number" min="0" @bind="_nuevoStock" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Observaciones</label>
+                        <input class="form-control" @bind="_ajusteObs" placeholder="Motivo del ajuste..." />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CerrarAjuste">Cancelar</button>
+                    <button class="btn btn-primary" @onclick="GuardarAjuste" disabled="@_ajustando">
+                        @if (_ajustando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    List<ProductoDto> _productos = new();
+    bool _cargando = true;
+    string _busqueda = string.Empty;
+    string _filtroActivo = "true";
+    bool _soloStockBajo;
+
+    HashSet<int> _seleccionados = new();
+    string _formatoEtiqueta = "50x30";
+    bool _imprimiendo;
+
+    ProductoDto? _productoAjuste;
+    int _nuevoStock;
+    string? _ajusteObs;
+    bool _ajustando;
+
+    IEnumerable<ProductoDto> ProductosFiltrados => _productos
+        .Where(p => !_soloStockBajo || p.StockBajo)
+        .Where(p => string.IsNullOrEmpty(_busqueda) ||
+            p.Nombre.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+            (p.Codigo?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    async Task CargarAsync()
+    {
+        _cargando = true;
+        _productos = await Svc.GetAllAsync(_filtroActivo == "true");
+        _seleccionados.Clear();
+        _cargando = false;
+    }
+
+    void ToggleSeleccion(int id, bool seleccionado)
+    {
+        if (seleccionado) _seleccionados.Add(id);
+        else _seleccionados.Remove(id);
+    }
+
+    void ToggleTodos(ChangeEventArgs e)
+    {
+        _seleccionados.Clear();
+        if ((bool)(e.Value ?? false))
+            foreach (var p in ProductosFiltrados)
+                _seleccionados.Add(p.Id);
+    }
+
+    async Task ImprimirEtiquetas()
+    {
+        if (!_seleccionados.Any()) return;
+        _imprimiendo = true;
+        try
+        {
+            var ids = string.Join(",", _seleccionados);
+            var bytes = await Http.GetByteArrayAsync(
+                $"api/productos/etiquetas-precio?ids={ids}&formato={_formatoEtiqueta}");
+            var b64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync("abrirPdfBase64", b64);
+        }
+        catch (Exception ex) { Notif.Error("Error al generar etiquetas: " + ex.Message); }
+        finally { _imprimiendo = false; }
+    }
+
+    void AbrirAjusteStock(ProductoDto p) { _productoAjuste = p; _nuevoStock = p.Stock; _ajusteObs = null; }
+    void CerrarAjuste() => _productoAjuste = null;
+
+    async Task GuardarAjuste()
+    {
+        if (_productoAjuste == null) return;
+        _ajustando = true;
+        var (ok, msg) = await Svc.AjustarStockAsync(new AjusteStockDto
+        {
+            ProductoId   = _productoAjuste.Id,
+            NuevoStock   = _nuevoStock,
+            Observaciones= _ajusteObs
+        });
+        _ajustando = false;
+        if (ok) { Notif.Success("Stock actualizado."); CerrarAjuste(); await CargarAsync(); }
+        else Notif.Error(msg);
+    }
+
+    async Task ExportarCsv()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Código;Nombre;Categoría;Precio venta;Costo;Stock;Stock mínimo;Activo");
+        foreach (var p in ProductosFiltrados)
+            sb.AppendLine(string.Join(";",
+                p.Codigo ?? "",
+                p.Nombre.Replace(";", " "),
+                p.CategoriaNombre ?? "",
+                p.PrecioVenta.ToString("N2"),
+                p.Costo.ToString("N2"),
+                p.Stock.ToString(),
+                p.StockMinimo.ToString(),
+                p.Activo ? "Sí" : "No"));
+        await JS.InvokeVoidAsync("descargarCsv", sb.ToString(), $"productos_{DateTime.Today:yyyyMMdd}.csv");
+    }
+}

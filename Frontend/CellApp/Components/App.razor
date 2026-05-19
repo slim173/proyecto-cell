@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <base href="/" />
+    <title>CellShop ERP</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#4f6ef7" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CellShop" />
+    <link rel="apple-touch-icon" href="/icons/icon.svg" />
+
+    <!-- Bootstrap 5 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <!-- App CSS -->
+    <link rel="stylesheet" href="css/app.css" />
+    <HeadOutlet />
+</head>
+
+<body>
+    <Routes @rendermode="new InteractiveServerRenderMode(prerender: false)" />
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="_framework/blazor.server.js"></script>
+
+    <!-- Registro del Service Worker (PWA) -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(reg => console.log('[PWA] Service Worker registrado:', reg.scope))
+                    .catch(err => console.warn('[PWA] Error al registrar SW:', err));
+            });
+        }
+    </script>
+    <!-- Escáner de código de barras (html5-qrcode) -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script>
+        let _cellScanner = null;
+
+        window.iniciarEscaner = async function (dotnetRef, elementId) {
+            try {
+                _cellScanner = new Html5Qrcode(elementId);
+                await _cellScanner.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: { width: 280, height: 120 } },
+                    async (decoded) => {
+                        await dotnetRef.invokeMethodAsync('OnCodigoEscaneado', decoded);
+                    },
+                    () => { }
+                );
+            } catch (e) {
+                console.warn('[Escaner]', e);
+                try { await dotnetRef.invokeMethodAsync('OnEscanerError', e.message || 'No se pudo acceder a la cámara'); } catch { }
+            }
+        };
+
+        window.pararEscaner = async function () {
+            if (_cellScanner) {
+                try {
+                    if (_cellScanner.isScanning) await _cellScanner.stop();
+                    _cellScanner.clear();
+                } catch { }
+                _cellScanner = null;
+            }
+        };
+    </script>
+    <!-- Chart.js helpers -->
+    <script>
+        const _charts = {};
+
+        window.initLineChart = function (id, labels, data) {
+            if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; }
+            const ctx = document.getElementById(id);
+            if (!ctx) return;
+            _charts[id] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99,102,241,.12)',
+                        fill: true, tension: 0.42,
+                        pointBackgroundColor: '#6366f1',
+                        pointRadius: 4, pointHoverRadius: 6,
+                        borderWidth: 2.5
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: {
+                        callbacks: { label: ctx => ' ' + ctx.parsed.y.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €' }
+                    }},
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,.06)' },
+                             ticks: { color: '#64748b', callback: v => v.toLocaleString('es-ES', { notation: 'compact' }) + ' €', font: { size: 11 } }},
+                        x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 11 } }}
+                    }
+                }
+            });
+        };
+
+        window.initDoughnutChart = function (id, labels, data) {
+            if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; }
+            const ctx = document.getElementById(id);
+            if (!ctx) return;
+            const palette = ['#94a3b8','#22d3ee','#f59e0b','#6366f1','#10b981','#ef4444','#a78bfa'];
+            _charts[id] = new Chart(ctx, {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data, backgroundColor: palette, borderWidth: 2, borderColor: '#13172a' }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '65%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#94a3b8', font: { size: 11 }, padding: 10, boxWidth: 12 }
+                        }
+                    }
+                }
+            });
+        };
+
+        window.destroyChart = function (id) {
+            if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; }
+        };
+    </script>
+    <!-- Helpers globales para PDF/Blob/CSV -->
+    <script>
+        window.abrirPdfBase64 = function (base64) {
+            const bin = atob(base64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+        };
+
+        window.descargarBlob = function (base64, nombre, tipo) {
+            const bin = atob(base64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            const blob = new Blob([bytes], { type: tipo });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = nombre; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+        };
+
+        window.descargarCsv = function (csv, nombre) {
+            const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = nombre; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+        };
+    </script>
+</body>
+
+</html>

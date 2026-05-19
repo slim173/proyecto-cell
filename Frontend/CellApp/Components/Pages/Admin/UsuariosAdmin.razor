@@ -1,0 +1,363 @@
+@page "/admin/usuarios"
+@rendermode InteractiveServer
+@inject UsuarioApiService Svc
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+@inject NotificacionService Notif
+
+<PageTitle>Usuarios — CellShop</PageTitle>
+
+<style>
+/* ── User cards ─────────────────────────────────────── */
+.uc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.uc-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--transition), transform var(--transition);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+}
+
+.uc-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.uc-card-top {
+    padding: 24px 20px 18px;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+}
+
+.uc-avatar {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    font-size: 1.4rem; font-weight: 900;
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 12px;
+    position: relative;
+}
+
+.uc-avatar.admin  { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 6px 20px rgba(239,68,68,.35); }
+.uc-avatar.empleado { background: linear-gradient(135deg, #6366f1, #818cf8); box-shadow: 0 6px 20px rgba(99,102,241,.35); }
+
+.uc-status-dot {
+    position: absolute; bottom: 2px; right: 2px;
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2.5px solid var(--surface);
+}
+.uc-status-dot.activo   { background: #22c55e; }
+.uc-status-dot.inactivo { background: #94a3b8; }
+
+.uc-fullname { font-weight: 700; font-size: .95rem; color: var(--text); margin-bottom: 2px; }
+.uc-username { font-size: .78rem; color: var(--text-muted); margin-bottom: 10px; }
+
+.uc-badges { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+
+.uc-role-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: .7rem; font-weight: 700;
+}
+.uc-role-badge.admin    { background: rgba(239,68,68,.1);  color: #dc2626; border: 1px solid rgba(239,68,68,.2); }
+.uc-role-badge.empleado { background: rgba(99,102,241,.1); color: #4f46e5; border: 1px solid rgba(99,102,241,.2); }
+
+.uc-status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: .7rem; font-weight: 700;
+}
+.uc-status-badge.activo   { background: rgba(34,197,94,.1);  color: #16a34a; border: 1px solid rgba(34,197,94,.2); }
+.uc-status-badge.inactivo { background: rgba(148,163,184,.1); color: #64748b; border: 1px solid rgba(148,163,184,.2); }
+
+.uc-card-bottom {
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface-2);
+    flex-grow: 1;
+}
+
+.uc-email { font-size: .75rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+
+/* Search bar */
+.uc-search {
+    position: relative; margin-bottom: 20px;
+}
+.uc-search-icon {
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); font-size: .82rem; pointer-events: none;
+}
+.uc-search input {
+    padding-left: 36px;
+}
+
+/* Empty state */
+.uc-empty { text-align: center; padding: 56px 16px; color: var(--text-muted); }
+.uc-empty i { font-size: 2.5rem; opacity: .2; margin-bottom: 12px; display: block; }
+</style>
+
+<!-- Header -->
+<div class="page-header">
+    <div>
+        <h4><i class="fas fa-users-cog me-2 text-primary"></i>Gestión de usuarios</h4>
+        <div class="text-muted small mt-1">@_usuarios.Count usuario@(_usuarios.Count != 1 ? "s" : "") registrado@(_usuarios.Count != 1 ? "s" : "")</div>
+    </div>
+    <button class="btn btn-primary" @onclick="AbrirNuevo">
+        <i class="fas fa-user-plus me-1"></i>Nuevo usuario
+    </button>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    <!-- Búsqueda -->
+    <div class="uc-search">
+        <span class="uc-search-icon"><i class="fas fa-search"></i></span>
+        <input class="form-control" placeholder="Buscar por nombre, usuario o email…"
+               @bind="_busqueda" @bind:event="oninput" />
+    </div>
+
+    @if (!Filtrados.Any())
+    {
+        <div class="uc-empty">
+            <i class="fas fa-users"></i>
+            <p class="fw-600">No se encontraron usuarios</p>
+            <p class="small text-muted mt-1">Prueba con otra búsqueda o crea un nuevo usuario.</p>
+        </div>
+    }
+    else
+    {
+        <div class="uc-grid">
+            @foreach (var u in Filtrados)
+            {
+                <div class="uc-card">
+                    <div class="uc-card-top">
+                        <div class="uc-avatar @u.Rol">
+                            @InicialesTotales(u.Nombre)
+                            <div class="uc-status-dot @(u.Activo ? "activo" : "inactivo")"></div>
+                        </div>
+                        <div class="uc-fullname">@u.Nombre</div>
+                        <div class="uc-username">@@@u.Username</div>
+                        <div class="uc-badges">
+                            <span class="uc-role-badge @u.Rol">
+                                <i class="fas @(u.Rol == "admin" ? "fa-shield-alt" : "fa-user-tie")"></i>
+                                @(u.Rol == "admin" ? "Administrador" : "Empleado")
+                            </span>
+                            <span class="uc-status-badge @(u.Activo ? "activo" : "inactivo")">
+                                <i class="fas @(u.Activo ? "fa-circle" : "fa-minus-circle")" style="font-size:.55rem;"></i>
+                                @(u.Activo ? "Activo" : "Inactivo")
+                            </span>
+                        </div>
+                    </div>
+                    <div class="uc-card-bottom">
+                        <span class="uc-email" title="@u.Email">
+                            @if (!string.IsNullOrEmpty(u.Email))
+                            {
+                                <i class="fas fa-envelope me-1 opacity-50"></i>@u.Email
+                            }
+                            else
+                            {
+                                <span class="text-muted fst-italic">Sin email</span>
+                            }
+                        </span>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => AbrirEditar(u)" title="Editar usuario">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+<!-- ── Modal crear / editar ── -->
+@if (_modalAbierto)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.55);">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="d-flex align-items-center gap-3">
+                        <div style="width:36px;height:36px;border-radius:9px;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:.9rem;">
+                            <i class="fas @(_editando == null ? "fa-user-plus" : "fa-user-edit")"></i>
+                        </div>
+                        <div>
+                            <div class="fw-700" style="font-size:.95rem;">
+                                @(_editando == null ? "Nuevo usuario" : $"Editar: {_editando.Username}")
+                            </div>
+                            <div class="text-muted" style="font-size:.75rem;">
+                                @(_editando == null ? "Rellena los datos del nuevo usuario" : "Modifica los datos del usuario")
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+
+                <div class="modal-body">
+                    @if (_editando == null)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Usuario <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_crear.Username"
+                                   placeholder="ej: juan.garcia" autocomplete="off" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nombre completo <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_crear.Nombre" placeholder="Juan García" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input class="form-control" type="email" @bind="_crear.Email"
+                                   placeholder="juan@tienda.com" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Contraseña <span class="text-danger">*</span></label>
+                            <input class="form-control" type="password" @bind="_crear.Password"
+                                   placeholder="Mínimo 6 caracteres" autocomplete="new-password" />
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label">Rol</label>
+                            <select class="form-select" @bind="_crear.Rol">
+                                <option value="empleado">Empleado</option>
+                                <option value="admin">Administrador</option>
+                            </select>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Nombre completo</label>
+                            <input class="form-control" @bind="_editar.Nombre" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input class="form-control" type="email" @bind="_editar.Email" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nueva contraseña</label>
+                            <input class="form-control" type="password" @bind="_editar.PasswordNueva"
+                                   placeholder="Vacío = no cambiar" autocomplete="new-password" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rol</label>
+                            <select class="form-select" @bind="_editar.Rol">
+                                <option value="empleado">Empleado</option>
+                                <option value="admin">Administrador</option>
+                            </select>
+                        </div>
+                        <div class="mb-0">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" @bind="_editar.Activo" id="chkActivo" />
+                                <label class="form-check-label" for="chkActivo">Usuario activo</label>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small mt-3 mb-0">
+                            <i class="fas fa-times-circle me-1"></i>@_modalError
+                        </div>
+                    }
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="CerrarModal">Cancelar</button>
+                    <button class="btn btn-primary btn-sm" @onclick="Guardar" disabled="@_guardando">
+                        @if (_guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="fas fa-save me-1"></i>Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    List<UsuarioAdminDto> _usuarios = [];
+    string _busqueda = string.Empty;
+    bool _cargando = true, _guardando;
+
+    IReadOnlyList<UsuarioAdminDto> Filtrados =>
+        string.IsNullOrWhiteSpace(_busqueda)
+            ? _usuarios
+            : _usuarios.Where(u =>
+                u.Username.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+                u.Nombre.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+                (u.Email ?? "").Contains(_busqueda, StringComparison.OrdinalIgnoreCase)
+              ).ToList();
+
+    bool _modalAbierto;
+    string _modalError = string.Empty;
+
+    UsuarioAdminDto?       _editando;
+    CreateUsuarioDto       _crear = new();
+    UpdateUsuarioAdminDto  _editar = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAdmin) { Nav.NavigateTo("/"); return; }
+        await Cargar();
+    }
+
+    async Task Cargar()
+    {
+        _cargando = true;
+        _usuarios = await Svc.GetAllAsync();
+        _cargando = false;
+    }
+
+    void AbrirNuevo()
+    {
+        _editando = null; _crear = new(); _modalError = string.Empty; _modalAbierto = true;
+    }
+
+    void AbrirEditar(UsuarioAdminDto u)
+    {
+        _editando = u;
+        _editar   = new() { Nombre = u.Nombre, Email = u.Email, Rol = u.Rol, Activo = u.Activo };
+        _modalError = string.Empty; _modalAbierto = true;
+    }
+
+    void CerrarModal() { _modalAbierto = false; _editando = null; }
+
+    async Task Guardar()
+    {
+        _modalError = string.Empty; _guardando = true;
+        bool ok; string msg;
+
+        if (_editando == null)
+        {
+            if (string.IsNullOrWhiteSpace(_crear.Username) || string.IsNullOrWhiteSpace(_crear.Nombre) ||
+                string.IsNullOrWhiteSpace(_crear.Password))
+            { _modalError = "Usuario, nombre y contraseña son obligatorios."; _guardando = false; return; }
+            (ok, msg) = await Svc.CreateAsync(_crear);
+        }
+        else { (ok, msg) = await Svc.UpdateAsync(_editando.Id, _editar); }
+
+        _guardando = false;
+        if (ok)
+        {
+            Notif.Success(_editando == null ? "Usuario creado correctamente." : "Usuario actualizado.");
+            CerrarModal(); await Cargar();
+        }
+        else _modalError = msg;
+    }
+
+    static string InicialesTotales(string nombre)
+    {
+        var p = nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return p.Length >= 2 ? $"{p[0][0]}{p[1][0]}".ToUpper()
+             : nombre.Length > 0 ? nombre[..1].ToUpper() : "?";
+    }
+}

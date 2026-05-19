@@ -1,0 +1,306 @@
+@page "/login"
+@rendermode InteractiveServer
+@layout CellApp.Components.Layout.BlankLayout
+@inject AuthApiService AuthSvc
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Iniciar sesión — CellShop ERP</PageTitle>
+
+<style>
+.lp-root {
+    min-height: 100vh;
+    display: flex;
+    background: #0c1120;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Decorative orbs */
+.lp-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+}
+.lp-orb-1 { width: 500px; height: 500px; background: rgba(99,102,241,.22); top: -120px; left: -100px; }
+.lp-orb-2 { width: 350px; height: 350px; background: rgba(129,140,248,.12); bottom: -80px; right: -60px; }
+
+/* Left side — branding */
+.lp-left {
+    display: none;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+}
+@@media (min-width: 900px) { .lp-left { display: flex; } }
+
+.lp-brand-icon {
+    width: 72px; height: 72px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; color: #fff;
+    box-shadow: 0 8px 32px rgba(99,102,241,.5);
+    margin-bottom: 28px;
+}
+
+.lp-title {
+    font-size: 2.4rem; font-weight: 800;
+    color: #fff; letter-spacing: -0.04em;
+    line-height: 1.1; margin-bottom: 14px;
+}
+
+.lp-title span { color: #818cf8; }
+
+.lp-subtitle {
+    font-size: 1rem; color: rgba(255,255,255,.5);
+    line-height: 1.6; max-width: 380px;
+}
+
+.lp-features {
+    margin-top: 36px;
+    display: flex; flex-direction: column; gap: 14px;
+}
+
+.lp-feature {
+    display: flex; align-items: center; gap: 12px;
+    color: rgba(255,255,255,.65); font-size: 0.875rem;
+}
+
+.lp-feature-dot {
+    width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+    background: rgba(99,102,241,.2); border: 1px solid rgba(99,102,241,.3);
+    display: flex; align-items: center; justify-content: center;
+    color: #818cf8; font-size: 0.8rem;
+}
+
+/* Right side — form */
+.lp-right {
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 460px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px 24px;
+    background: rgba(255,255,255,.03);
+    border-left: 1px solid rgba(255,255,255,.06);
+}
+
+@@media (min-width: 900px) { .lp-right { width: 460px; } }
+
+.lp-card {
+    width: 100%; max-width: 380px;
+}
+
+.lp-card-header {
+    margin-bottom: 32px;
+}
+
+.lp-card-logo {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; color: #fff; margin-bottom: 20px;
+    box-shadow: 0 4px 18px rgba(99,102,241,.45);
+}
+
+.lp-card-title {
+    font-size: 1.5rem; font-weight: 800;
+    color: #f1f5f9; letter-spacing: -0.03em;
+    margin-bottom: 4px;
+}
+
+.lp-card-sub {
+    font-size: 0.875rem; color: rgba(255,255,255,.4);
+}
+
+/* Form */
+.lp-label {
+    display: block; font-size: 0.8rem; font-weight: 600;
+    color: rgba(255,255,255,.55); margin-bottom: 7px;
+    letter-spacing: 0.02em;
+}
+
+.lp-input {
+    width: 100%; padding: 11px 14px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 9px;
+    color: #f1f5f9; font-size: 0.9rem;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+}
+
+.lp-input::placeholder { color: rgba(255,255,255,.25); }
+
+.lp-input:focus {
+    border-color: rgba(99,102,241,.6);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+    background: rgba(255,255,255,.09);
+}
+
+.lp-btn {
+    width: 100%; padding: 12px;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #fff; font-weight: 700; font-size: 0.9rem;
+    border: none; border-radius: 9px; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(99,102,241,.4);
+    transition: all .17s cubic-bezier(.4,0,.2,1);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+
+.lp-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #4f46e5, #3730a3);
+    box-shadow: 0 6px 22px rgba(99,102,241,.55);
+    transform: translateY(-1px);
+}
+
+.lp-btn:active { transform: scale(0.98); }
+.lp-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.lp-error {
+    background: rgba(239,68,68,.12);
+    border: 1px solid rgba(239,68,68,.25);
+    color: #fca5a5;
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 0.82rem; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+}
+
+.lp-footer {
+    text-align: center; margin-top: 24px;
+    font-size: 0.75rem; color: rgba(255,255,255,.2);
+}
+</style>
+
+<div class="lp-root">
+    <!-- Orbs -->
+    <div class="lp-orb lp-orb-1"></div>
+    <div class="lp-orb lp-orb-2"></div>
+
+    <!-- Left branding -->
+    <div class="lp-left">
+        <div>
+            <div class="lp-brand-icon"><i class="fas fa-mobile-alt"></i></div>
+            <div class="lp-title">CellShop<br /><span>ERP</span></div>
+            <div class="lp-subtitle">Sistema integral de gestión para tiendas de telefonía y reparación.</div>
+            <div class="lp-features">
+                <div class="lp-feature">
+                    <div class="lp-feature-dot"><i class="fas fa-tools"></i></div>
+                    Gestión de reparaciones y garantías
+                </div>
+                <div class="lp-feature">
+                    <div class="lp-feature-dot"><i class="fas fa-cash-register"></i></div>
+                    Ventas, caja y facturación
+                </div>
+                <div class="lp-feature">
+                    <div class="lp-feature-dot"><i class="fas fa-boxes"></i></div>
+                    Inventario y alertas de stock
+                </div>
+                <div class="lp-feature">
+                    <div class="lp-feature-dot"><i class="fas fa-chart-line"></i></div>
+                    Dashboard con KPIs en tiempo real
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right form -->
+    <div class="lp-right">
+        <div class="lp-card">
+            <div class="lp-card-header">
+                <div class="lp-card-logo"><i class="fas fa-mobile-alt"></i></div>
+                <div class="lp-card-title">Bienvenido</div>
+                <div class="lp-card-sub">Inicia sesión en tu cuenta</div>
+            </div>
+
+            <div style="margin-bottom:18px;">
+                <label class="lp-label"><i class="fas fa-user me-1" style="opacity:.6;"></i>Usuario</label>
+                <input class="lp-input" type="text" placeholder="Tu nombre de usuario"
+                       @bind="_username" @onkeydown="OnKeyDown"
+                       autocomplete="username" />
+            </div>
+
+            <div style="margin-bottom:22px;">
+                <label class="lp-label"><i class="fas fa-lock me-1" style="opacity:.6;"></i>Contraseña</label>
+                <input class="lp-input" type="password" placeholder="••••••••"
+                       @bind="_password" @onkeydown="OnKeyDown"
+                       autocomplete="current-password" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="lp-error">
+                    <i class="fas fa-exclamation-circle"></i>@_error
+                </div>
+            }
+
+            <button class="lp-btn" @onclick="IniciarSesion" disabled="@_cargando">
+                @if (_cargando)
+                {
+                    <span class="spinner-border spinner-border-sm"></span>
+                    <span>Verificando...</span>
+                }
+                else
+                {
+                    <i class="fas fa-arrow-right-to-bracket"></i>
+                    <span>Iniciar sesión</span>
+                }
+            </button>
+
+            <div class="lp-footer">CellShop ERP &copy; @DateTime.Now.Year</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    string _username = string.Empty;
+    string _password = string.Empty;
+    bool _cargando;
+    string _error = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        if (AuthState.IsAuthenticated)
+            Nav.NavigateTo("/");
+    }
+
+    async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await IniciarSesion();
+    }
+
+    async Task IniciarSesion()
+    {
+        _error = string.Empty;
+        if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Ingresa tu usuario y contraseña.";
+            return;
+        }
+
+        _cargando = true;
+        StateHasChanged();
+
+        var (ok, msg, data) = await AuthSvc.LoginAsync(new LoginDto
+        {
+            Username = _username.Trim(),
+            Password = _password
+        });
+
+        _cargando = false;
+
+        if (ok && data != null)
+        {
+            AuthState.SetUser(data.Username, data.Nombre, data.Token, data.Rol);
+            Nav.NavigateTo("/", forceLoad: false);
+        }
+        else
+        {
+            _error = string.IsNullOrWhiteSpace(msg) ? "Usuario o contraseña incorrectos." : msg;
+            _password = string.Empty;
+            StateHasChanged();
+        }
+    }
+}

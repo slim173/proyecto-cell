@@ -1,0 +1,223 @@
+@page "/productos/{Id:int}/editar"
+@rendermode InteractiveServer
+@inject ProductoApiService Svc
+@inject NavigationManager Nav
+@inject NotificacionService Notif
+@inject IJSRuntime JS
+@inject AuthStateService AuthState
+@implements IAsyncDisposable
+
+<PageTitle>Editar producto — CellShop</PageTitle>
+
+<div class="page-header">
+    <h4><i class="fas fa-edit me-2 text-primary"></i>Editar producto</h4>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando && _dto != null)
+{
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Código / SKU</label>
+                            <div class="input-group">
+                                <input class="form-control" @bind="_dto.Codigo" />
+                                <button class="btn btn-outline-secondary" type="button"
+                                        title="Escanear código de barras con la cámara"
+                                        @onclick="AbrirEscaner">
+                                    <i class="fas fa-barcode"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold">Nombre <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_dto.Nombre" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Descripción</label>
+                            <textarea class="form-control" @bind="_dto.Descripcion" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Categoría</label>
+                            <select class="form-select" @bind="_dto.CategoriaId">
+                                <option value="">— Sin categoría —</option>
+                                @foreach (var c in _categorias)
+                                {
+                                    <option value="@c.Id">@c.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Unidad de medida</label>
+                            <select class="form-select" @bind="_dto.UnidadMedida">
+                                <option value="unidad">Unidad</option>
+                                <option value="par">Par</option>
+                                <option value="caja">Caja</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Precio venta (€)</label>
+                            <input class="form-control" type="number" step="0.01" min="0" @bind="_dto.PrecioVenta" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Costo (€)</label>
+                            <input class="form-control" type="number" step="0.01" min="0" @bind="_dto.Costo" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Stock mínimo</label>
+                            <input class="form-control" type="number" min="0" @bind="_dto.StockMinimo" />
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" @bind="_dto.Activo" id="chkActivo" />
+                                <label class="form-check-label" for="chkActivo">Producto activo</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_error))
+                    {
+                        <div class="alert alert-danger mt-3"><i class="fas fa-times-circle me-2"></i>@_error</div>
+                    }
+
+                    <div class="d-flex gap-2 justify-content-end mt-4">
+                        <a href="/productos" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Cancelar
+                        </a>
+                        <button class="btn btn-primary" @onclick="Guardar" disabled="@_guardando">
+                            @if (_guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fas fa-save me-1"></i>Guardar cambios
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal escáner de cámara -->
+@if (_escanerAbierto)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.75)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title fw-semibold">
+                        <i class="fas fa-camera me-2 text-primary"></i>Escanear código de barras
+                    </h6>
+                    <button type="button" class="btn-close" @onclick="CerrarEscaner"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div id="barcode-scanner-div"></div>
+                    @if (!string.IsNullOrEmpty(_escanerError))
+                    {
+                        <div class="alert alert-danger mt-2 py-2 small">
+                            <i class="fas fa-exclamation-triangle me-1"></i>@_escanerError
+                        </div>
+                    }
+                    <p class="text-muted text-center small mt-2 mb-0">
+                        <i class="fas fa-info-circle me-1"></i>Apunta la cámara al código de barras
+                    </p>
+                </div>
+                <div class="modal-footer py-2">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="CerrarEscaner">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    UpdateProductoDto? _dto;
+    List<CategoriaDto> _categorias = new();
+    bool _cargando = true, _guardando;
+    string _error = string.Empty;
+
+    // ── Escáner ──────────────────────────────────────────────────
+    bool _escanerAbierto;
+    bool _escanerInicializado;
+    string _escanerError = string.Empty;
+    DotNetObjectReference<ProductosEdit>? _dotNetRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAdmin) { Nav.NavigateTo("/productos"); return; }
+        _categorias = await Svc.GetCategoriasAsync();
+        var p = await Svc.GetByIdAsync(Id);
+        if (p == null) { Nav.NavigateTo("/productos"); return; }
+        _dto = new UpdateProductoDto
+        {
+            Codigo = p.Codigo, Nombre = p.Nombre, Descripcion = p.Descripcion,
+            CategoriaId = p.CategoriaId, PrecioVenta = p.PrecioVenta, Costo = p.Costo,
+            StockMinimo = p.StockMinimo, UnidadMedida = p.UnidadMedida, Activo = p.Activo
+        };
+        _cargando = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_escanerAbierto && !_escanerInicializado)
+        {
+            _escanerInicializado = true;
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("iniciarEscaner", _dotNetRef, "barcode-scanner-div");
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    void AbrirEscaner()
+    {
+        _escanerError        = string.Empty;
+        _escanerInicializado = false;
+        _escanerAbierto      = true;
+    }
+
+    async Task CerrarEscaner()
+    {
+        await JS.InvokeVoidAsync("pararEscaner");
+        _escanerAbierto      = false;
+        _escanerInicializado = false;
+    }
+
+    [JSInvokable]
+    public async Task OnCodigoEscaneado(string codigo)
+    {
+        if (_dto != null) _dto.Codigo = codigo;
+        await CerrarEscaner();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnEscanerError(string mensaje)
+    {
+        _escanerError        = mensaje;
+        _escanerInicializado = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_escanerInicializado)
+            try { await JS.InvokeVoidAsync("pararEscaner"); } catch { }
+        _dotNetRef?.Dispose();
+    }
+
+    async Task Guardar()
+    {
+        if (_dto == null || string.IsNullOrWhiteSpace(_dto.Nombre)) { _error = "El nombre es obligatorio."; return; }
+        _guardando = true; _error = string.Empty;
+        try
+        {
+            var (ok, msg) = await Svc.UpdateAsync(Id, _dto);
+            if (ok) { Notif.Success("Producto actualizado."); Nav.NavigateTo("/productos"); }
+            else _error = msg;
+        }
+        catch (Exception ex) { _error = "Error al guardar: " + ex.Message; }
+        finally { _guardando = false; }
+    }
+}

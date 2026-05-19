@@ -1,0 +1,54 @@
+@* Botón de envío de email con input inline desplegable *@
+<div class="d-inline-flex align-items-center gap-1">
+    @if (!_expandido)
+    {
+        <button class="btn btn-outline-info btn-sm" @onclick="Expandir" title="Enviar por email"
+                disabled="@Enviando">
+            <i class="fas fa-envelope me-1"></i>Email
+        </button>
+    }
+    else
+    {
+        <div class="d-flex align-items-center gap-1">
+            <input class="form-control form-control-sm"
+                   type="email"
+                   style="width:210px"
+                   placeholder="correo@ejemplo.com"
+                   @bind="_email"
+                   @bind:event="oninput" />
+            <button class="btn btn-sm btn-success"
+                    @onclick="Enviar"
+                    disabled="@(Enviando || string.IsNullOrWhiteSpace(_email))">
+                @if (Enviando)
+                { <span class="spinner-border spinner-border-sm"></span> }
+                else
+                { <i class="fas fa-paper-plane"></i> }
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _expandido = false">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string EmailPorDefecto { get; set; } = string.Empty;
+    [Parameter] public bool   Enviando        { get; set; }
+    [Parameter] public EventCallback<string> OnEnviar { get; set; }
+
+    string _email    = string.Empty;
+    bool   _expandido;
+
+    void Expandir()
+    {
+        _email    = EmailPorDefecto;
+        _expandido = true;
+    }
+
+    async Task Enviar()
+    {
+        if (string.IsNullOrWhiteSpace(_email)) return;
+        await OnEnviar.InvokeAsync(_email.Trim());
+        _expandido = false;
+    }
+}

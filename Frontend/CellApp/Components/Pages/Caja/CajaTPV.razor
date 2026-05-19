@@ -1,0 +1,623 @@
+@page "/caja"
+@rendermode InteractiveServer
+@inject CajaApiService Svc
+@inject ProductoApiService ProductoSvc
+@inject VentaApiService VentaSvc
+@inject ClienteApiService ClienteSvc
+@inject NotificacionService Notif
+@inject IJSRuntime JS
+
+<PageTitle>Caja / TPV — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-cash-register me-2 text-primary"></i>Caja / TPV</h4>
+    @if (_sesion != null)
+    {
+        <span class="badge bg-success fs-6">
+            <i class="fas fa-circle me-1" style="font-size:.6em"></i>Caja abierta — @_sesion.NumeroSesion
+        </span>
+    }
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    @if (_sesion == null)
+    {
+        <!-- Sin sesión: abrir caja -->
+        <div class="row justify-content-center">
+            <div class="col-md-5">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4 text-center">
+                        <i class="fas fa-cash-register fa-3x text-muted mb-3"></i>
+                        <h5 class="fw-bold mb-1">La caja está cerrada</h5>
+                        <p class="text-muted small mb-4">Introduce el efectivo inicial para abrir la sesión de caja.</p>
+                        <div class="mb-3 text-start">
+                            <label class="form-label fw-semibold">Efectivo en caja al abrir</label>
+                            <div class="input-group">
+                                <input class="form-control text-end" type="number" step="0.01" min="0"
+                                       @bind="_efectivoApertura" placeholder="0.00" />
+                                <span class="input-group-text">€</span>
+                            </div>
+                        </div>
+                        <div class="mb-3 text-start">
+                            <label class="form-label fw-semibold">Observaciones (opcional)</label>
+                            <input class="form-control" @bind="_obsApertura" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(_errorCaja))
+                        {
+                            <div class="alert alert-danger py-2 small">@_errorCaja</div>
+                        }
+                        <button class="btn btn-success w-100" @onclick="AbrirCaja" disabled="@_procesando">
+                            @if (_procesando) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                            <i class="fas fa-lock-open me-2"></i>Abrir caja
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Sesión abierta -->
+        <div class="row g-3">
+
+            <!-- Columna izquierda: escáner + resumen + movimientos -->
+            <div class="col-lg-8">
+
+                <!-- ── Cobro rápido ── -->
+                <div class="card shadow-sm mb-3 border-primary border-opacity-25">
+                    <div class="card-header bg-primary bg-opacity-10 fw-semibold">
+                        <i class="fas fa-barcode me-2 text-primary"></i>Cobro rápido — Escáner de productos
+                    </div>
+                    <div class="card-body">
+
+                        <!-- Input escáner -->
+                        <div class="input-group mb-2">
+                            <span class="input-group-text bg-light">
+                                <i class="fas fa-barcode text-primary"></i>
+                            </span>
+                            <input @ref="_scannerRef"
+                                   class="form-control"
+                                   placeholder="Escanear código EAN o buscar por nombre…"
+                                   @bind="_scanInput"
+                                   @bind:event="oninput"
+                                   @onkeydown="OnScannerKeyDown"
+                                   autocomplete="off"
+                                   spellcheck="false" />
+                            <button class="btn btn-outline-primary" @onclick="BuscarProducto"
+                                    disabled="@_buscando">
+                                @if (_buscando) { <span class="spinner-border spinner-border-sm"></span> }
+                                else { <i class="fas fa-search"></i> }
+                            </button>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(_scanError))
+                        {
+                            <div class="alert alert-warning py-2 small mb-2">
+                                <i class="fas fa-exclamation-triangle me-1"></i>@_scanError
+                            </div>
+                        }
+
+                        <!-- Tabla carrito -->
+                        @if (_carrito.Any())
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-2">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Producto</th>
+                                            <th class="text-center" style="width:120px">Cantidad</th>
+                                            <th class="text-end" style="width:90px">Precio</th>
+                                            <th class="text-end" style="width:90px">Subtotal</th>
+                                            <th style="width:40px"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var linea in _carrito)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-semibold small">@linea.Nombre</div>
+                                                    @if (!string.IsNullOrEmpty(linea.Codigo))
+                                                    {
+                                                        <code class="text-muted" style="font-size:10px">@linea.Codigo</code>
+                                                    }
+                                                </td>
+                                                <td class="text-center">
+                                                    <div class="input-group input-group-sm" style="width:100px;margin:auto">
+                                                        <button class="btn btn-outline-secondary"
+                                                                @onclick="() => CambiarCantidad(linea, -1)">−</button>
+                                                        <input class="form-control text-center" type="number" min="1"
+                                                               value="@linea.Cantidad"
+                                                               @onchange="e => CambiarCantidadDirecta(linea, e)" />
+                                                        <button class="btn btn-outline-secondary"
+                                                                @onclick="() => CambiarCantidad(linea, +1)">+</button>
+                                                    </div>
+                                                </td>
+                                                <td class="text-end small">@linea.PrecioUnitario.ToString("N2") €</td>
+                                                <td class="text-end fw-semibold">@linea.Subtotal.ToString("N2") €</td>
+                                                <td class="text-center">
+                                                    <button class="btn btn-sm btn-outline-danger"
+                                                            @onclick="() => QuitarDelCarrito(linea)">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                    <tfoot class="table-light fw-bold">
+                                        <tr>
+                                            <td colspan="3" class="text-end">TOTAL</td>
+                                            <td class="text-end text-primary fs-5">@TotalCarrito.ToString("N2") €</td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+
+                            <!-- Cobro -->
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold mb-1">Cliente</label>
+                                    <select class="form-select form-select-sm" @bind="_carritoClienteId">
+                                        <option value="0">— Seleccionar cliente —</option>
+                                        @foreach (var c in _clientes)
+                                        {
+                                            <option value="@c.Id">@c.NombreCompleto</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-semibold mb-1">Método de pago</label>
+                                    <select class="form-select form-select-sm" @bind="_carritoMetodoPago">
+                                        <option value="efectivo">Efectivo</option>
+                                        <option value="tarjeta">Tarjeta</option>
+                                        <option value="bizum">Bizum</option>
+                                        <option value="transferencia">Transferencia</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <button class="btn btn-success w-100" @onclick="Cobrar"
+                                            disabled="@_cobrando">
+                                        @if (_cobrando)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        <i class="fas fa-check me-1"></i>Cobrar @TotalCarrito.ToString("N2") €
+                                    </button>
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-outline-secondary w-100 btn-sm"
+                                            @onclick="LimpiarCarrito">
+                                        <i class="fas fa-trash me-1"></i>Limpiar
+                                    </button>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(_errorCobro))
+                            {
+                                <div class="alert alert-danger py-2 small mt-2 mb-0">@_errorCobro</div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-center text-muted py-3 small">
+                                <i class="fas fa-barcode fa-2x mb-2 d-block opacity-25"></i>
+                                Escanea un código de barras o busca un producto por nombre
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Resumen totales -->
+                <div class="row g-2 mb-3">
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 bg-success bg-opacity-10 text-center p-2">
+                            <div class="fw-bold text-success fs-5">@_sesion.TotalEfectivo.ToString("N2") €</div>
+                            <small class="text-muted">Efectivo</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 bg-primary bg-opacity-10 text-center p-2">
+                            <div class="fw-bold text-primary fs-5">@_sesion.TotalTarjeta.ToString("N2") €</div>
+                            <small class="text-muted">Tarjeta</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 bg-info bg-opacity-10 text-center p-2">
+                            <div class="fw-bold text-info fs-5">@_sesion.TotalOtros.ToString("N2") €</div>
+                            <small class="text-muted">Otros</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 bg-dark bg-opacity-10 text-center p-2">
+                            <div class="fw-bold fs-5">@(_sesion.EfectivoApertura + _sesion.TotalEfectivo).ToString("N2") €</div>
+                            <small class="text-muted">Efectivo real</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Movimientos -->
+                <div class="card shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-list me-2"></i>Movimientos</span>
+                        <small class="text-muted">@_sesion.Movimientos.Count entradas</small>
+                    </div>
+                    <div class="table-responsive" style="max-height:320px;overflow-y:auto">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Hora</th>
+                                    <th>Tipo</th>
+                                    <th>Concepto</th>
+                                    <th>Método</th>
+                                    <th class="text-end">Importe</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var m in _sesion.Movimientos.OrderByDescending(m => m.Fecha))
+                                {
+                                    <tr>
+                                        <td class="text-muted small">@m.Fecha.ToString("HH:mm")</td>
+                                        <td>
+                                            <span class="badge @(m.Tipo=="entrada"?"bg-success":"bg-danger")">
+                                                @(m.Tipo == "entrada" ? "Entrada" : "Salida")
+                                            </span>
+                                        </td>
+                                        <td class="small">@m.Concepto</td>
+                                        <td class="small text-muted">@(m.MetodoPago ?? "—")</td>
+                                        <td class="text-end fw-semibold @(m.Tipo=="entrada"?"text-success":"text-danger")">
+                                            @(m.Tipo == "entrada" ? "+" : "-")@m.Importe.ToString("N2") €
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!_sesion.Movimientos.Any())
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-3">Sin movimientos registrados.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna derecha: acciones -->
+            <div class="col-lg-4">
+
+                <!-- Añadir movimiento -->
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header fw-semibold">
+                        <i class="fas fa-plus-circle me-2 text-primary"></i>Registrar movimiento
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <div class="btn-group w-100">
+                                <button type="button"
+                                        class="btn @(_tipoMov=="entrada"?"btn-success":"btn-outline-success")"
+                                        @onclick='() => _tipoMov = "entrada"'>
+                                    <i class="fas fa-arrow-up me-1"></i>Entrada
+                                </button>
+                                <button type="button"
+                                        class="btn @(_tipoMov=="salida"?"btn-danger":"btn-outline-danger")"
+                                        @onclick='() => _tipoMov = "salida"'>
+                                    <i class="fas fa-arrow-down me-1"></i>Salida
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <input class="form-control form-control-sm" placeholder="Concepto *"
+                                   @bind="_conceptoMov" />
+                        </div>
+                        <div class="mb-2">
+                            <div class="input-group input-group-sm">
+                                <input class="form-control text-end" type="number" step="0.01" min="0"
+                                       @bind="_importeMov" placeholder="0.00" />
+                                <span class="input-group-text">€</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <select class="form-select form-select-sm" @bind="_metodoPagoMov">
+                                <option value="efectivo">Efectivo</option>
+                                <option value="tarjeta">Tarjeta</option>
+                                <option value="transferencia">Transferencia</option>
+                                <option value="bizum">Bizum</option>
+                            </select>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_errorMov))
+                        {
+                            <div class="alert alert-danger py-1 small mb-2">@_errorMov</div>
+                        }
+                        <button class="btn btn-primary w-100 btn-sm" @onclick="AddMovimiento" disabled="@_procesando">
+                            @if (_procesando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fas fa-save me-1"></i>Registrar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Info sesión -->
+                <div class="card shadow-sm mb-3 border-0 bg-light">
+                    <div class="card-body py-2 small text-muted">
+                        <div><i class="fas fa-clock me-1"></i>Apertura: <strong>@_sesion.FechaApertura.ToString("HH:mm dd/MM")</strong></div>
+                        <div><i class="fas fa-coins me-1"></i>Efectivo apertura: <strong>@_sesion.EfectivoApertura.ToString("N2") €</strong></div>
+                        @if (!string.IsNullOrEmpty(_sesion.UsuarioApertura))
+                        {
+                            <div><i class="fas fa-user me-1"></i>Abierta por: <strong>@_sesion.UsuarioApertura</strong></div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Cerrar caja -->
+                <div class="card shadow-sm border-danger">
+                    <div class="card-header fw-semibold text-danger">
+                        <i class="fas fa-lock me-2"></i>Cerrar caja
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Efectivo contado al cierre</label>
+                            <div class="input-group input-group-sm">
+                                <input class="form-control text-end" type="number" step="0.01" min="0"
+                                       @bind="_efectivoCierre" />
+                                <span class="input-group-text">€</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <input class="form-control form-control-sm" placeholder="Observaciones cierre"
+                                   @bind="_obsCierre" />
+                        </div>
+                        <button class="btn btn-danger w-100 btn-sm" @onclick="CerrarCaja" disabled="@_procesando">
+                            @if (_procesando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="fas fa-lock me-1"></i>Cerrar caja
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    CajaSesionDto?     _sesion;
+    List<ClienteDto>   _clientes = new();
+    bool _cargando = true;
+    string _errorCaja = string.Empty;
+    bool _procesando;
+
+    // Apertura
+    decimal _efectivoApertura;
+    string? _obsApertura;
+
+    // Movimiento manual
+    string  _tipoMov       = "entrada";
+    string  _conceptoMov   = string.Empty;
+    decimal _importeMov;
+    string  _metodoPagoMov = "efectivo";
+    string  _errorMov      = string.Empty;
+
+    // Cierre
+    decimal _efectivoCierre;
+    string? _obsCierre;
+
+    // ── Carrito / escáner ──────────────────────────────────────────
+    ElementReference _scannerRef;
+    bool    _focusPendiente;
+    string  _scanInput       = string.Empty;
+    string? _scanError;
+    bool    _buscando;
+
+    List<LineaCarrito> _carrito          = new();
+    int     _carritoClienteId   = 0;
+    string  _carritoMetodoPago  = "efectivo";
+    bool    _cobrando;
+    string  _errorCobro = string.Empty;
+
+    decimal TotalCarrito => _carrito.Sum(l => l.Subtotal);
+
+    class LineaCarrito
+    {
+        public int     ProductoId     { get; init; }
+        public string  Nombre         { get; init; } = string.Empty;
+        public string? Codigo         { get; init; }
+        public decimal PrecioUnitario { get; init; }
+        public int     Cantidad       { get; set; } = 1;
+        public decimal Subtotal       => Math.Round(Cantidad * PrecioUnitario, 2);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        var sesionTask   = Svc.GetSesionActualAsync();
+        var clientesTask = ClienteSvc.GetAllAsync();
+        await Task.WhenAll(sesionTask, clientesTask);
+        _sesion   = sesionTask.Result;
+        _clientes = clientesTask.Result;
+        if (_sesion != null)
+        {
+            _efectivoCierre = _sesion.EfectivoApertura + _sesion.TotalEfectivo;
+            _focusPendiente = true;
+        }
+        _cargando = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusPendiente)
+        {
+            _focusPendiente = false;
+            try { await _scannerRef.FocusAsync(); } catch { }
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    async Task CargarAsync()
+    {
+        _cargando = true;
+        _sesion   = await Svc.GetSesionActualAsync();
+        if (_sesion != null)
+            _efectivoCierre = _sesion.EfectivoApertura + _sesion.TotalEfectivo;
+        _cargando = false;
+    }
+
+    // ── Escáner ────────────────────────────────────────────────────
+
+    async Task OnScannerKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await BuscarProducto();
+    }
+
+    async Task BuscarProducto()
+    {
+        var q = _scanInput.Trim();
+        if (string.IsNullOrEmpty(q)) return;
+
+        _scanError = null;
+        _buscando  = true;
+        var producto = await ProductoSvc.BuscarPorCodigoAsync(q);
+        _buscando  = false;
+
+        if (producto == null)
+        {
+            _scanError = $"Producto no encontrado: \"{q}\"";
+        }
+        else
+        {
+            AgregarAlCarrito(producto);
+            _scanError = null;
+        }
+
+        _scanInput = string.Empty;
+        try { await _scannerRef.FocusAsync(); } catch { }
+    }
+
+    void AgregarAlCarrito(ProductoDto p)
+    {
+        var existente = _carrito.FirstOrDefault(l => l.ProductoId == p.Id);
+        if (existente != null)
+        {
+            existente.Cantidad++;
+        }
+        else
+        {
+            _carrito.Add(new LineaCarrito
+            {
+                ProductoId     = p.Id,
+                Nombre         = p.Nombre,
+                Codigo         = p.Codigo,
+                PrecioUnitario = p.PrecioVenta
+            });
+        }
+    }
+
+    void CambiarCantidad(LineaCarrito linea, int delta)
+    {
+        linea.Cantidad = Math.Max(1, linea.Cantidad + delta);
+    }
+
+    void CambiarCantidadDirecta(LineaCarrito linea, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v) && v >= 1)
+            linea.Cantidad = v;
+    }
+
+    void QuitarDelCarrito(LineaCarrito linea) => _carrito.Remove(linea);
+
+    void LimpiarCarrito()
+    {
+        _carrito.Clear();
+        _scanError  = null;
+        _errorCobro = string.Empty;
+    }
+
+    async Task Cobrar()
+    {
+        _errorCobro = string.Empty;
+        if (!_carrito.Any()) return;
+        if (_carritoClienteId == 0) { _errorCobro = "Selecciona un cliente para proceder al cobro."; return; }
+        if (_sesion == null) return;
+
+        _cobrando = true;
+
+        var dto = new CreateVentaDto
+        {
+            ClienteId    = _carritoClienteId,
+            MetodoPago   = _carritoMetodoPago,
+            Descuento    = 0,
+            TipoDescuento = "importe",
+            Detalles     = _carrito.Select(l => new CreateVentaDetalleDto
+            {
+                ProductoId     = l.ProductoId,
+                Descripcion    = l.Nombre,
+                Cantidad       = l.Cantidad,
+                PrecioUnitario = l.PrecioUnitario
+            }).ToList()
+        };
+
+        var (ok, msg, venta) = await VentaSvc.CreateAsync(dto);
+
+        if (ok && venta != null)
+        {
+            var concepto = $"Venta #{venta.NumeroVenta ?? venta.Id.ToString()}";
+            await Svc.AddMovimientoAsync(_sesion.Id, "entrada", concepto, TotalCarrito, _carritoMetodoPago);
+            Notif.Success($"Cobro registrado — {TotalCarrito:N2} €");
+            LimpiarCarrito();
+            await CargarAsync();
+        }
+        else
+        {
+            _errorCobro = msg;
+        }
+
+        _cobrando = false;
+        try { await _scannerRef.FocusAsync(); } catch { }
+    }
+
+    // ── Caja ───────────────────────────────────────────────────────
+
+    async Task AbrirCaja()
+    {
+        _errorCaja = string.Empty;
+        _procesando = true;
+        var (ok, msg, sesion) = await Svc.AbrirAsync(_efectivoApertura, _obsApertura);
+        _procesando = false;
+        if (ok)
+        {
+            _sesion = sesion;
+            _focusPendiente = true;
+            Notif.Success("Caja abierta correctamente.");
+        }
+        else _errorCaja = msg;
+    }
+
+    async Task AddMovimiento()
+    {
+        _errorMov = string.Empty;
+        if (string.IsNullOrWhiteSpace(_conceptoMov)) { _errorMov = "Introduce el concepto."; return; }
+        if (_importeMov <= 0) { _errorMov = "El importe debe ser mayor a 0."; return; }
+        if (_sesion == null) return;
+
+        _procesando = true;
+        var (ok, msg) = await Svc.AddMovimientoAsync(_sesion.Id, _tipoMov, _conceptoMov, _importeMov, _metodoPagoMov);
+        _procesando = false;
+
+        if (ok)
+        {
+            Notif.Success("Movimiento registrado.");
+            _conceptoMov = string.Empty;
+            _importeMov  = 0;
+            await CargarAsync();
+        }
+        else _errorMov = msg;
+    }
+
+    async Task CerrarCaja()
+    {
+        if (_sesion == null) return;
+        _procesando = true;
+        var (ok, msg) = await Svc.CerrarAsync(_sesion.Id, _efectivoCierre, _obsCierre);
+        _procesando = false;
+        if (ok) { Notif.Success("Caja cerrada correctamente."); _sesion = null; }
+        else Notif.Error(msg);
+    }
+}

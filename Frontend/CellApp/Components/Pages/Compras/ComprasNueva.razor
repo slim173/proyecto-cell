@@ -1,0 +1,263 @@
+@page "/compras/nueva"
+@rendermode InteractiveServer
+@inject CompraApiService CompraSvc
+@inject ProductoApiService ProductoSvc
+@inject NavigationManager Nav
+@inject NotificacionService Notif
+
+<PageTitle>Nueva compra — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-shopping-cart me-2 text-primary"></i>Nueva compra</h4>
+    <a href="/compras" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-arrow-left me-1"></i>Volver
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- Izquierda: proveedor + líneas -->
+    <div class="col-lg-8">
+        <!-- Proveedor -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header"><i class="fas fa-truck me-2"></i>Proveedor</div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-8">
+                        <select class="form-select" @bind="_dto.ProveedorId">
+                            <option value="0">— Seleccionar proveedor —</option>
+                            @foreach (var p in _proveedores)
+                            {
+                                <option value="@p.Id">@p.Nombre @(p.Ciudad != null ? $"({p.Ciudad})" : "")</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-secondary w-100" type="button"
+                                @onclick="() => _mostrarNuevoProveedor = !_mostrarNuevoProveedor">
+                            <i class="fas fa-plus me-1"></i>Nuevo proveedor
+                        </button>
+                    </div>
+                    @if (_mostrarNuevoProveedor)
+                    {
+                        <div class="col-12 p-3 bg-light rounded border">
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <input class="form-control form-control-sm" placeholder="Nombre *"
+                                           @bind="_nuevoProveedor.Nombre" />
+                                </div>
+                                <div class="col-md-4">
+                                    <input class="form-control form-control-sm" placeholder="Email"
+                                           @bind="_nuevoProveedor.Email" />
+                                </div>
+                                <div class="col-md-4">
+                                    <input class="form-control form-control-sm" placeholder="Teléfono"
+                                           @bind="_nuevoProveedor.Telefono" />
+                                </div>
+                                <div class="col-md-4">
+                                    <input class="form-control form-control-sm" placeholder="CIF"
+                                           @bind="_nuevoProveedor.Cif" />
+                                </div>
+                                <div class="col-md-4">
+                                    <input class="form-control form-control-sm" placeholder="Ciudad"
+                                           @bind="_nuevoProveedor.Ciudad" />
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-sm btn-primary w-100" @onclick="GuardarProveedor"
+                                            disabled="@_guardandoProveedor">
+                                        @if (_guardandoProveedor) { <span class="spinner-border spinner-border-sm"></span> }
+                                        else { <i class="fas fa-save me-1"></i> } Guardar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    <div class="col-12">
+                        <input class="form-control" placeholder="Observaciones de la compra (opcional)"
+                               @bind="_dto.Observaciones" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Líneas -->
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-list me-2"></i>Productos a comprar</span>
+                <button class="btn btn-sm btn-outline-primary" @onclick="AgregarLinea">
+                    <i class="fas fa-plus me-1"></i>Agregar línea
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-borderless align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40%">Producto</th>
+                            <th style="width:15%">Cant.</th>
+                            <th style="width:20%">Costo unit.</th>
+                            <th style="width:15%">Subtotal</th>
+                            <th style="width:10%"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (linea, i) in _dto.Detalles.Select((l, i) => (l, i)))
+                        {
+                            <tr>
+                                <td>
+                                    <select class="form-select form-select-sm"
+                                            @onchange="e => OnProductoChange(e, linea)">
+                                        <option value="0">— Seleccionar producto —</option>
+                                        @foreach (var p in _productos)
+                                        {
+                                            <option value="@p.Id" selected="@(linea.ProductoId == p.Id)">
+                                                @p.Nombre @(p.Codigo != null ? $"[{p.Codigo}]" : "")
+                                            </option>
+                                        }
+                                    </select>
+                                </td>
+                                <td>
+                                    <input class="form-control form-control-sm text-center" type="number"
+                                           min="1" @bind="linea.Cantidad" />
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <input class="form-control text-end" type="number" step="0.01" min="0"
+                                               @bind="linea.CostoUnitario" />
+                                        <span class="input-group-text">€</span>
+                                    </div>
+                                </td>
+                                <td class="fw-semibold text-end">@linea.Subtotal.ToString("N2") €</td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => QuitarLinea(i)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!_dto.Detalles.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-3">
+                                    Haz clic en "Agregar línea" para añadir productos
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Derecha: resumen -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm position-sticky" style="top:20px">
+            <div class="card-header"><i class="fas fa-receipt me-2"></i>Resumen</div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Líneas</span>
+                    <span>@_dto.Detalles.Count</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Unidades totales</span>
+                    <span>@_dto.Detalles.Sum(d => d.Cantidad)</span>
+                </div>
+                <hr />
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="fw-bold fs-5">TOTAL</span>
+                    <span class="fw-bold fs-5 text-primary">@TotalCompra.ToString("N2") €</span>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger py-2 small">@_error</div>
+                }
+
+                <button class="btn btn-primary w-100" @onclick="Confirmar" disabled="@_guardando">
+                    @if (_guardando) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                    <i class="fas fa-check-circle me-2"></i>Registrar compra
+                </button>
+                <a href="/compras" class="btn btn-outline-secondary w-100 mt-2">Cancelar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    CreateCompraDto _dto = new();
+    CreateProveedorDto _nuevoProveedor = new();
+    List<ProveedorDto> _proveedores = new();
+    List<ProductoDto> _productos = new();
+    bool _guardando, _guardandoProveedor, _mostrarNuevoProveedor;
+    string _error = string.Empty;
+
+    decimal TotalCompra => _dto.Detalles.Sum(d => d.Subtotal);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proveedores = await CompraSvc.GetProveedoresAsync();
+        _productos   = await ProductoSvc.GetAllAsync(soloActivos: true);
+        AgregarLinea();
+    }
+
+    void AgregarLinea() => _dto.Detalles.Add(new CreateCompraDetalleDto { Cantidad = 1 });
+    void QuitarLinea(int i) => _dto.Detalles.RemoveAt(i);
+
+    void OnProductoChange(ChangeEventArgs e, CreateCompraDetalleDto linea)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var pid) && pid > 0)
+        {
+            var p = _productos.FirstOrDefault(x => x.Id == pid);
+            if (p != null)
+            {
+                linea.ProductoId    = p.Id;
+                linea.ProductoNombre = p.Nombre;
+                linea.CostoUnitario = p.Costo > 0 ? p.Costo : 0;
+            }
+        }
+        else
+        {
+            linea.ProductoId = 0;
+        }
+    }
+
+    async Task GuardarProveedor()
+    {
+        if (string.IsNullOrWhiteSpace(_nuevoProveedor.Nombre)) { Notif.Error("El nombre es obligatorio."); return; }
+        _guardandoProveedor = true;
+        var (ok, msg) = await CompraSvc.CreateProveedorAsync(_nuevoProveedor);
+        _guardandoProveedor = false;
+        if (ok)
+        {
+            Notif.Success("Proveedor creado.");
+            _proveedores = await CompraSvc.GetProveedoresAsync();
+            _nuevoProveedor = new CreateProveedorDto();
+            _mostrarNuevoProveedor = false;
+            _dto.ProveedorId = _proveedores.LastOrDefault()?.Id ?? 0;
+        }
+        else Notif.Error(msg);
+    }
+
+    async Task Confirmar()
+    {
+        _error = string.Empty;
+        if (_dto.ProveedorId == 0) { _error = "Selecciona un proveedor."; return; }
+        if (!_dto.Detalles.Any()) { _error = "Agrega al menos un producto."; return; }
+        if (_dto.Detalles.Any(d => d.ProductoId == 0)) { _error = "Todas las líneas deben tener un producto."; return; }
+        if (_dto.Detalles.Any(d => d.CostoUnitario <= 0)) { _error = "El costo unitario debe ser mayor a 0."; return; }
+
+        _guardando = true;
+        try
+        {
+            var (ok, msg) = await CompraSvc.CreateAsync(_dto);
+            if (ok) { Notif.Success("Compra registrada. Stock actualizado."); Nav.NavigateTo("/compras"); }
+            else _error = msg;
+        }
+        catch (Exception ex)
+        {
+            _error = "Error al guardar la compra: " + ex.Message;
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

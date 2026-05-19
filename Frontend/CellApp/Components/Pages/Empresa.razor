@@ -1,0 +1,677 @@
+@page "/empresa"
+@rendermode InteractiveServer
+@inject EmpresaApiService Svc
+@inject NotificacionService Notif
+@inject IConfiguration Config
+@inject AuthStateService AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Información de la empresa — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-building me-2 text-primary"></i>Información de la empresa</h4>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    <div class="row g-4">
+        <!-- ── Columna izquierda: datos empresa ── -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-semibold">
+                    <i class="fas fa-store me-2 text-primary"></i>Datos de la empresa
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nombre comercial <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_dto.Nombre" placeholder="CellShop" />
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">CIF / NIF</label>
+                            <input class="form-control" @bind="_dto.Cif" placeholder="B12345678" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Teléfono</label>
+                            <input class="form-control" @bind="_dto.Telefono" placeholder="+34 91 000 00 00" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Dirección</label>
+                        <input class="form-control" @bind="_dto.Direccion" placeholder="Calle Mayor, 1" />
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Código postal</label>
+                            <input class="form-control" @bind="_dto.CodigoPostal" placeholder="28001" />
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold">Ciudad</label>
+                            <input class="form-control" @bind="_dto.Ciudad" placeholder="Madrid" />
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Email de empresa</label>
+                            <input class="form-control" type="email" @bind="_dto.Email" placeholder="info@cellshop.es" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Sitio web</label>
+                            <input class="form-control" @bind="_dto.Web" placeholder="www.cellshop.es" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">IVA por defecto (%)</label>
+                        <div class="input-group" style="max-width:160px">
+                            <input class="form-control" type="number" min="0" max="100" step="1"
+                                   @bind="_dto.IvaPorcentaje" />
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Texto pie de factura</label>
+                        <textarea class="form-control" rows="2" @bind="_dto.PieFactura"
+                                  placeholder="Gracias por su confianza. CellShop - Servicio Técnico"></textarea>
+                        <small class="text-muted">Aparece al final de todas las facturas PDF.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Columna derecha: configuración correo ── -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-semibold">
+                    <i class="fas fa-envelope me-2 text-success"></i>Correo saliente (SMTP)
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Configuración para el envío de facturas y notificaciones por correo electrónico.
+                        Con Gmail usa una <strong>contraseña de aplicación</strong> (no la contraseña normal).
+                    </p>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold">Servidor SMTP</label>
+                            <input class="form-control" @bind="_dto.SmtpHost" placeholder="smtp.gmail.com" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Puerto</label>
+                            <input class="form-control" type="number" @bind="_dto.SmtpPuerto" placeholder="587" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="chkSsl"
+                                   @bind="_dto.SmtpSsl" />
+                            <label class="form-check-label" for="chkSsl">
+                                Usar TLS/SSL (recomendado)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Usuario SMTP (email)</label>
+                        <input class="form-control" type="email" @bind="_dto.SmtpUsuario"
+                               placeholder="tucorreo@gmail.com" autocomplete="off" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            Contraseña SMTP
+                            @if (_empresaOriginal?.TieneSmtpPassword == true)
+                            {
+                                <span class="badge bg-success ms-2 fw-normal small">Configurada</span>
+                            }
+                        </label>
+                        <input class="form-control" type="password" @bind="_dto.SmtpPassword"
+                               placeholder="@(_empresaOriginal?.TieneSmtpPassword == true ? "••••••••  (dejar vacío para no cambiar)" : "Contraseña de aplicación")"
+                               autocomplete="new-password" />
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Nombre remitente</label>
+                            <input class="form-control" @bind="_dto.SmtpFromName" placeholder="CellShop" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Email remitente</label>
+                            <input class="form-control" type="email" @bind="_dto.SmtpFromEmail"
+                                   placeholder="tucorreo@gmail.com" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vista previa factura -->
+            <div class="card shadow-sm border-primary">
+                <div class="card-header fw-semibold text-primary">
+                    <i class="fas fa-eye me-2"></i>Vista previa en facturas
+                </div>
+                <div class="card-body py-3" style="font-size:0.85rem;font-family:monospace;background:#f8f9fa">
+                    <div class="fw-bold fs-5 text-primary">@(string.IsNullOrEmpty(_dto.Nombre) ? "CellShop" : _dto.Nombre)</div>
+                    @if (!string.IsNullOrEmpty(_dto.Cif))
+                    { <div class="text-muted">CIF: @_dto.Cif</div> }
+                    @if (!string.IsNullOrEmpty(_dto.Direccion))
+                    { <div class="text-muted">@_dto.Direccion</div> }
+                    @if (!string.IsNullOrEmpty(_dto.CodigoPostal) || !string.IsNullOrEmpty(_dto.Ciudad))
+                    { <div class="text-muted">@_dto.CodigoPostal @_dto.Ciudad</div> }
+                    @if (!string.IsNullOrEmpty(_dto.Telefono))
+                    { <div class="text-muted">Tel: @_dto.Telefono</div> }
+                    @if (!string.IsNullOrEmpty(_dto.Email))
+                    { <div class="text-muted">@_dto.Email</div> }
+                    @if (!string.IsNullOrEmpty(_dto.PieFactura))
+                    {
+                        <hr class="my-2" />
+                        <div class="text-muted fst-italic small">@_dto.PieFactura</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Logo de la empresa ── -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header fw-semibold">
+            <i class="fas fa-image me-2 text-primary"></i>Logo de la empresa
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                El logo aparece en el encabezado de todos los documentos PDF (facturas, tickets, órdenes de reparación).
+                Formatos admitidos: JPG, PNG, WebP. Tamaño máximo: 5 MB.
+            </p>
+            <div class="d-flex flex-wrap align-items-start gap-4">
+                <!-- Vista previa del logo actual -->
+                <div>
+                    <div class="border rounded p-2 bg-light d-flex align-items-center justify-content-center"
+                         style="width:160px;height:100px;overflow:hidden;">
+                        @if (!string.IsNullOrEmpty(_logoUrl))
+                        {
+                            <img src="@(_apiBase + "/" + _logoUrl!.TrimStart('/') + "?t=" + _logoTs)"
+                                 alt="Logo empresa"
+                                 style="max-width:100%;max-height:100%;object-fit:contain;" />
+                        }
+                        else
+                        {
+                            <span class="text-muted small text-center">
+                                <i class="fas fa-image fa-2x d-block mb-1 opacity-50"></i>Sin logo
+                            </span>
+                        }
+                    </div>
+                    @if (!string.IsNullOrEmpty(_logoUrl))
+                    {
+                        <button class="btn btn-sm btn-outline-danger mt-2 w-100"
+                                @onclick="EliminarLogo" disabled="@_subiendoLogo">
+                            <i class="fas fa-trash me-1"></i>Eliminar logo
+                        </button>
+                    }
+                </div>
+
+                <!-- Subir logo -->
+                <div class="flex-grow-1" style="min-width:220px;">
+                    <label class="form-label fw-semibold">Subir nuevo logo</label>
+                    <InputFile OnChange="OnLogoSeleccionado" accept=".jpg,.jpeg,.png,.webp,.gif"
+                               class="form-control mb-2" />
+                    @if (_subiendoLogo)
+                    {
+                        <div class="d-flex align-items-center gap-2 text-muted small">
+                            <span class="spinner-border spinner-border-sm"></span>Subiendo…
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_logoError))
+                    {
+                        <div class="text-danger small mt-1">
+                            <i class="fas fa-times-circle me-1"></i>@_logoError
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Configuración de impresión ── -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header fw-semibold">
+            <i class="fas fa-print me-2 text-primary"></i>Configuración de impresión / tickets
+        </div>
+        <div class="card-body">
+
+            <div class="row g-4">
+                <!-- Columna izquierda: opciones -->
+                <div class="col-lg-8">
+
+                    <!-- Formato de impresión -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Formato de impresión</label>
+                        <p class="text-muted small mb-2">
+                            Elige el formato para órdenes de reparación y tickets de venta.
+                        </p>
+                        <div class="d-flex flex-wrap gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="ticketFormato" id="fmtA4"
+                                       value="a4" checked="@(_dto.TicketFormato == "a4")"
+                                       @onchange='() => _dto.TicketFormato = "a4"' />
+                                <label class="form-check-label" for="fmtA4">
+                                    <i class="fas fa-file me-1 text-primary"></i>A4 — folio estándar
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="ticketFormato" id="fmt80"
+                                       value="ticket_80mm" checked="@(_dto.TicketFormato == "ticket_80mm")"
+                                       @onchange='() => _dto.TicketFormato = "ticket_80mm"' />
+                                <label class="form-check-label" for="fmt80">
+                                    <i class="fas fa-receipt me-1 text-success"></i>Ticket 80 mm
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="ticketFormato" id="fmt58"
+                                       value="ticket_58mm" checked="@(_dto.TicketFormato == "ticket_58mm")"
+                                       @onchange='() => _dto.TicketFormato = "ticket_58mm"' />
+                                <label class="form-check-label" for="fmt58">
+                                    <i class="fas fa-receipt me-1 text-warning"></i>Ticket 58 mm
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- QR en órdenes -->
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="chkQr"
+                                   @bind="_dto.TicketMostrarQr" />
+                            <label class="form-check-label fw-semibold" for="chkQr">
+                                <i class="fas fa-qrcode me-1"></i>Incluir QR en órdenes de reparación
+                            </label>
+                        </div>
+                        <small class="text-muted ms-4">
+                            El QR codifica el número de orden (o la URL digital si está configurada).
+                        </small>
+                    </div>
+
+                    <!-- URL pública para QR digital -->
+                    <div class="mb-0">
+                        <label class="form-label fw-semibold">
+                            <i class="fas fa-link me-1 text-primary"></i>URL pública (QR digital en todos los PDFs)
+                        </label>
+                        <input class="form-control" @bind="_dto.UrlPublica"
+                               placeholder="https://mitienda.com" />
+                        <small class="text-muted">
+                            Al configurar esta URL, facturas y tickets incluirán un QR que lleva al
+                            documento digital. Deja vacío para no incluir QR digital.
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Columna derecha: QR de contacto WhatsApp -->
+                <div class="col-lg-4">
+                    <div class="border rounded p-3 bg-light text-center h-100 d-flex flex-column align-items-center justify-content-center">
+                        <div class="fw-semibold mb-2">
+                            <i class="fab fa-whatsapp text-success me-1"></i>QR de contacto WhatsApp
+                        </div>
+                        <small class="text-muted mb-3">
+                            Escanea para abrir WhatsApp con el teléfono de la tienda.
+                            Aparece en los tickets si se activa.
+                        </small>
+                        @if (!string.IsNullOrEmpty(_dto.Telefono))
+                        {
+                            <img src="@(_apiBase + "/api/configuracion/qr-contacto?t=" + _qrTs)"
+                                 alt="QR WhatsApp"
+                                 style="width:140px;height:140px;object-fit:contain;"
+                                 class="border rounded bg-white p-1 mb-2" />
+                            <small class="text-muted">@_dto.Telefono</small>
+                            <button type="button" class="btn btn-outline-secondary btn-sm mt-2"
+                                    @onclick="() => _qrTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()">
+                                <i class="fas fa-sync me-1"></i>Actualizar QR
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="text-muted small py-3">
+                                <i class="fas fa-phone-slash fa-2x d-block mb-2 opacity-25"></i>
+                                Configura el teléfono de la empresa para generar el QR
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4" />
+
+            <!-- Cláusulas -->
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">
+                        <i class="fas fa-gavel me-1 text-danger"></i>Cláusula de reparación
+                    </label>
+                    <textarea class="form-control font-monospace" rows="4" @bind="_dto.ClausulaReparacion"
+                              placeholder="La tienda no se hace responsable por daños adicionales, pérdida de datos..."></textarea>
+                    <div class="d-flex justify-content-between mt-1">
+                        <small class="text-muted">Al pie de cada orden de reparación.</small>
+                        <small class="@((_dto.ClausulaReparacion?.Length ?? 0) > 500 ? "text-danger" : "text-muted")">
+                            @(_dto.ClausulaReparacion?.Length ?? 0) car.
+                        </small>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-1"
+                            @onclick="RellenarClausulaReparacion">
+                        <i class="fas fa-magic me-1"></i>Rellenar ejemplo
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">
+                        <i class="fas fa-box-open me-1 text-warning"></i>Condiciones de recogida
+                    </label>
+                    <textarea class="form-control font-monospace" rows="4" @bind="_dto.ClausulaRecogida"
+                              placeholder="El cliente dispone de 30 días desde la notificación para recoger su dispositivo..."></textarea>
+                    <div class="d-flex justify-content-between mt-1">
+                        <small class="text-muted">A continuación de la cláusula anterior.</small>
+                        <small class="@((_dto.ClausulaRecogida?.Length ?? 0) > 500 ? "text-danger" : "text-muted")">
+                            @(_dto.ClausulaRecogida?.Length ?? 0) car.
+                        </small>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-1"
+                            @onclick="RellenarClausulaRecogida">
+                        <i class="fas fa-magic me-1"></i>Rellenar ejemplo
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ── WhatsApp API (Twilio) ── -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header fw-semibold">
+            <i class="fab fa-whatsapp me-2 text-success"></i>WhatsApp API — Credenciales Twilio
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Configura tu cuenta de <strong>Twilio</strong> para enviar mensajes de WhatsApp automáticos.
+                Necesitas una cuenta en <em>twilio.com</em> con el sandbox de WhatsApp activado.
+            </p>
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="chkWaActivo"
+                               @bind="_dto.WhatsappActivo" />
+                        <label class="form-check-label fw-semibold" for="chkWaActivo">
+                            <i class="fab fa-whatsapp text-success me-1"></i>Activar envíos por WhatsApp
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Account SID</label>
+                    <input class="form-control" @bind="_dto.TwilioAccountSid"
+                           placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">
+                        Auth Token
+                        @if (_empresaOriginal?.TieneTwilioAuthToken == true)
+                        {
+                            <span class="badge bg-success ms-2 fw-normal small">Configurado</span>
+                        }
+                    </label>
+                    <input class="form-control" type="password" @bind="_dto.TwilioAuthToken"
+                           placeholder="@(_empresaOriginal?.TieneTwilioAuthToken == true ? "••••••••  (vacío = no cambiar)" : "Auth token de Twilio")"
+                           autocomplete="new-password" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Número remitente WhatsApp</label>
+                    <input class="form-control" @bind="_dto.TwilioWhatsappFrom"
+                           placeholder="whatsapp:+14155238886" />
+                    <small class="text-muted">Formato: whatsapp:+[número del sandbox]</small>
+                </div>
+            </div>
+
+            <hr class="my-4" />
+
+            <h6 class="fw-semibold mb-3"><i class="fas fa-bell me-1 text-warning"></i>Recordatorios automáticos</h6>
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="chkRecActivo"
+                               @bind="_dto.RecordatorioActivo" />
+                        <label class="form-check-label fw-semibold" for="chkRecActivo">
+                            Enviar recordatorio a clientes con reparación lista sin recoger
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Días sin recoger para avisar</label>
+                    <div class="input-group" style="max-width:160px">
+                        <input class="form-control" type="number" min="1" max="30"
+                               @bind="_dto.RecordatorioDias" />
+                        <span class="input-group-text">días</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Mensajes WhatsApp ── -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header fw-semibold">
+            <i class="fab fa-whatsapp me-2 text-success"></i>Mensajes de WhatsApp
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Variables disponibles:
+                <code>{nombre}</code> <code>{dispositivo}</code> <code>{orden}</code>
+                <code>{tienda}</code> <code>{total}</code> <code>{estado}</code>
+                <code>{link_ticket}</code>
+            </p>
+            <div class="alert alert-info py-2 small">
+                <i class="fas fa-info-circle me-1"></i>
+                <strong>{link_ticket}</strong> se sustituye por el enlace directo al PDF digital.
+                Solo aparece si configuras la <em>URL pública</em> en «Configuración de impresión» (arriba).
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">
+                    <i class="fas fa-sign-in-alt me-1 text-info"></i>Entrada registrada
+                </label>
+                <textarea class="form-control" rows="2" @bind="_dto.WaMsgEntrada"
+                          placeholder="¡Hola {nombre}! Hemos recibido tu {dispositivo} en {tienda}..."></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">
+                    <i class="fas fa-check-circle me-1 text-success"></i>Listo para recoger
+                </label>
+                <textarea class="form-control" rows="2" @bind="_dto.WaMsgListo"
+                          placeholder="¡Hola {nombre}! Tu {dispositivo} ya está listo..."></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">
+                    <i class="fas fa-bell me-1 text-warning"></i>Recordatorio de recogida
+                </label>
+                <textarea class="form-control" rows="2" @bind="_dto.WaMsgRecordatorio"
+                          placeholder="Hola {nombre}, te recordamos que tienes el {dispositivo} pendiente de recoger..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger mt-3">
+            <i class="fas fa-times-circle me-2"></i>@_error
+        </div>
+    }
+
+    <!-- Botón guardar -->
+    <div class="d-flex justify-content-end mt-4">
+        <button class="btn btn-primary px-4" @onclick="Guardar" disabled="@_guardando">
+            @if (_guardando)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            <i class="fas fa-save me-2"></i>Guardar configuración
+        </button>
+    </div>
+}
+
+@code {
+    UpdateEmpresaDto _dto = new();
+    EmpresaDto? _empresaOriginal;
+    bool _cargando = true;
+    bool _guardando;
+    string _error = string.Empty;
+
+    // Logo
+    string? _logoUrl;
+    bool    _subiendoLogo;
+    string  _logoError = string.Empty;
+    long    _logoTs;   // cache-buster logo
+    long    _qrTs;    // cache-buster QR contacto
+    string  _apiBase = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        _apiBase = (Config["ApiBaseUrl"] ?? "http://localhost:51013").TrimEnd('/');
+        _qrTs    = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        try
+        {
+            _empresaOriginal = await Svc.GetAsync();
+            if (_empresaOriginal != null)
+            {
+                _logoUrl = _empresaOriginal.LogoUrl;
+                _dto = new UpdateEmpresaDto
+                {
+                    Nombre        = _empresaOriginal.Nombre,
+                    Cif           = _empresaOriginal.Cif,
+                    Direccion     = _empresaOriginal.Direccion,
+                    Ciudad        = _empresaOriginal.Ciudad,
+                    CodigoPostal  = _empresaOriginal.CodigoPostal,
+                    Telefono      = _empresaOriginal.Telefono,
+                    Email         = _empresaOriginal.Email,
+                    Web           = _empresaOriginal.Web,
+                    PieFactura    = _empresaOriginal.PieFactura,
+                    IvaPorcentaje = _empresaOriginal.IvaPorcentaje,
+                    SmtpHost      = _empresaOriginal.SmtpHost,
+                    SmtpPuerto    = _empresaOriginal.SmtpPuerto,
+                    SmtpSsl       = _empresaOriginal.SmtpSsl,
+                    SmtpUsuario   = _empresaOriginal.SmtpUsuario,
+                    SmtpFromName      = _empresaOriginal.SmtpFromName,
+                    SmtpFromEmail     = _empresaOriginal.SmtpFromEmail,
+                    WaMsgEntrada      = _empresaOriginal.WaMsgEntrada,
+                    WaMsgListo        = _empresaOriginal.WaMsgListo,
+                    WaMsgRecordatorio = _empresaOriginal.WaMsgRecordatorio,
+                    WhatsappActivo    = _empresaOriginal.WhatsappActivo,
+                    TwilioAccountSid  = _empresaOriginal.TwilioAccountSid,
+                    TwilioWhatsappFrom= _empresaOriginal.TwilioWhatsappFrom,
+                    RecordatorioActivo= _empresaOriginal.RecordatorioActivo,
+                    RecordatorioDias  = _empresaOriginal.RecordatorioDias,
+                    TicketFormato      = _empresaOriginal.TicketFormato,
+                    ClausulaReparacion = _empresaOriginal.ClausulaReparacion,
+                    ClausulaRecogida   = _empresaOriginal.ClausulaRecogida,
+                    TicketMostrarQr    = _empresaOriginal.TicketMostrarQr,
+                    UrlPublica         = _empresaOriginal.UrlPublica,
+                    // SmtpPassword se deja vacío intencionalmente
+                };
+            }
+        }
+        catch { }
+        finally { _cargando = false; }
+    }
+
+    async Task OnLogoSeleccionado(InputFileChangeEventArgs e)
+    {
+        _logoError    = string.Empty;
+        _subiendoLogo = true;
+        StateHasChanged();
+        try
+        {
+            var file = e.File;
+            if (file.Size > 5_242_880)
+            {
+                _logoError = "El archivo supera el límite de 5 MB.";
+                return;
+            }
+            await using var stream = file.OpenReadStream(maxAllowedSize: 5_242_880);
+            var (ok, msg, url) = await Svc.SubirLogoAsync(stream, file.Name);
+            if (ok)
+            {
+                _logoUrl  = url;
+                _logoTs   = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                Notif.Success("Logo subido correctamente.");
+            }
+            else
+            {
+                _logoError = msg;
+            }
+        }
+        catch (Exception ex) { _logoError = "Error: " + ex.Message; }
+        finally
+        {
+            _subiendoLogo = false;
+            StateHasChanged();
+        }
+    }
+
+    async Task EliminarLogo()
+    {
+        _logoError    = string.Empty;
+        _subiendoLogo = true;
+        StateHasChanged();
+        try
+        {
+            var (ok, msg) = await Svc.EliminarLogoAsync();
+            if (ok)
+            {
+                _logoUrl = null;
+                Notif.Success("Logo eliminado.");
+            }
+            else
+            {
+                _logoError = msg;
+            }
+        }
+        catch (Exception ex) { _logoError = "Error: " + ex.Message; }
+        finally
+        {
+            _subiendoLogo = false;
+            StateHasChanged();
+        }
+    }
+
+    void RellenarClausulaReparacion()
+    {
+        _dto.ClausulaReparacion = "El presente documento constituye la aceptación de los trabajos de reparación descritos. " +
+            "La tienda no se hace responsable por daños adicionales, pérdida de datos o mal funcionamiento posterior a la reparación, " +
+            "salvo acuerdo previo por escrito. La garantía sobre la reparación es de 90 días sobre la mano de obra y el componente sustituido.";
+    }
+
+    void RellenarClausulaRecogida()
+    {
+        _dto.ClausulaRecogida = "El cliente dispone de 30 días desde la notificación de finalización para recoger su dispositivo. " +
+            "Pasado este plazo, se aplicará una tarifa de almacenamiento de 1 €/día. " +
+            "Si el dispositivo no es recogido en 90 días desde la notificación, será considerado abandonado y la tienda quedará " +
+            "eximida de toda responsabilidad sobre el mismo.";
+    }
+
+    async Task Guardar()
+    {
+        _error = string.Empty;
+        if (string.IsNullOrWhiteSpace(_dto.Nombre))
+        {
+            _error = "El nombre de la empresa es obligatorio.";
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            var (ok, msg) = await Svc.UpdateAsync(_dto);
+            if (ok)
+            {
+                Notif.Success("Configuración de empresa guardada correctamente.");
+                _empresaOriginal = await Svc.GetAsync();
+                _dto.SmtpPassword    = null; // limpiar después de guardar
+                _dto.TwilioAuthToken = null;
+            }
+            else
+            {
+                _error = msg;
+            }
+        }
+        catch (Exception ex) { _error = "Error al guardar: " + ex.Message; }
+        finally { _guardando = false; }
+    }
+}

@@ -1,0 +1,452 @@
+@page "/perfil"
+@rendermode InteractiveServer
+@inject UsuarioApiService Svc
+@inject AuthStateService AuthState
+@inject NotificacionService Notif
+
+<PageTitle>Mi perfil — CellShop</PageTitle>
+
+<style>
+/* ── Profile hero ──────────────────────────────────────────── */
+.pr-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    padding: 48px 24px 36px;
+    text-align: center;
+    margin-bottom: 28px;
+    background: linear-gradient(135deg, #0c1120 0%, #161d35 55%, #1a1433 100%);
+    border: 1px solid rgba(255,255,255,.06);
+}
+
+.pr-hero-orb {
+    position: absolute; border-radius: 50%; pointer-events: none;
+    filter: blur(70px);
+}
+.pr-hero-orb-1 { width:320px;height:320px;background:rgba(99,102,241,.2);top:-100px;left:50%;transform:translateX(-50%); }
+.pr-hero-orb-2 { width:180px;height:180px;background:rgba(129,140,248,.1);bottom:-40px;right:60px; }
+.pr-hero-orb-3 { width:140px;height:140px;background:rgba(79,209,197,.08);bottom:-20px;left:80px; }
+
+.pr-avatar-wrap {
+    position: relative; display: inline-block; margin-bottom: 18px; z-index: 1;
+}
+
+.pr-avatar {
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1 0%, #818cf8 60%, #a5b4fc 100%);
+    color: #fff;
+    font-size: 2.1rem; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+    border: 4px solid rgba(255,255,255,.12);
+    box-shadow: 0 0 0 8px rgba(99,102,241,.12), 0 12px 40px rgba(99,102,241,.5);
+    letter-spacing: -1px;
+}
+
+.pr-avatar-ring {
+    position: absolute; inset: -8px;
+    border-radius: 50%;
+    border: 2px dashed rgba(99,102,241,.3);
+    animation: pr-spin 18s linear infinite;
+}
+
+@@keyframes pr-spin { to { transform: rotate(360deg); } }
+
+.pr-name {
+    font-size: 1.55rem; font-weight: 800; color: #fff;
+    letter-spacing: -0.03em; margin-bottom: 4px;
+    position: relative; z-index: 1;
+}
+
+.pr-username {
+    font-size: 0.88rem; color: rgba(255,255,255,.38);
+    margin-bottom: 14px; position: relative; z-index: 1;
+}
+
+.pr-role {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 16px;
+    background: rgba(99,102,241,.18);
+    border: 1px solid rgba(99,102,241,.35);
+    color: #c7d2fe;
+    border-radius: 20px;
+    font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em;
+    position: relative; z-index: 1;
+}
+
+.pr-role.admin { background:rgba(239,68,68,.15); border-color:rgba(239,68,68,.3); color:#fca5a5; }
+
+/* Strip de info */
+.pr-strip {
+    display: flex; justify-content: center;
+    margin-top: 28px; padding-top: 22px;
+    border-top: 1px solid rgba(255,255,255,.07);
+    position: relative; z-index: 1;
+    gap: 0;
+}
+
+.pr-stat { padding: 0 28px; text-align: center; border-right: 1px solid rgba(255,255,255,.07); }
+.pr-stat:last-child { border-right: none; }
+.pr-stat-val { font-size: 1.15rem; font-weight: 800; color: #e2e8f0; line-height: 1.1; }
+.pr-stat-label { font-size: 0.67rem; color: rgba(255,255,255,.3); margin-top: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+/* ── Section card headers ──────────────────────────────────── */
+.pr-ch {
+    display: flex; align-items: center; gap: 12px;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.pr-ch-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.88rem; flex-shrink: 0;
+}
+
+.pr-ch-icon.indigo { background: rgba(99,102,241,.1); color: #6366f1; }
+.pr-ch-icon.green  { background: rgba(16,185,129,.1);  color: #10b981; }
+.pr-ch-icon.amber  { background: rgba(245,158,11,.1);  color: #f59e0b; }
+
+.pr-ch-title { font-weight: 700; font-size: 0.9rem; color: var(--text); line-height: 1.1; }
+.pr-ch-sub   { font-size: 0.73rem; color: var(--text-muted); }
+
+/* ── Quick link rows ──────────────────────────────────────── */
+.pr-link {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 20px;
+    text-decoration: none; color: var(--text);
+    border-bottom: 1px solid var(--border);
+    transition: background var(--transition);
+}
+.pr-link:last-child { border-bottom: none; }
+.pr-link:hover { background: var(--surface-2); color: var(--text); }
+
+.pr-link-icon {
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.82rem; flex-shrink: 0;
+}
+</style>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    <!-- ── HERO ── -->
+    <div class="pr-hero">
+        <div class="pr-hero-orb pr-hero-orb-1"></div>
+        <div class="pr-hero-orb pr-hero-orb-2"></div>
+        <div class="pr-hero-orb pr-hero-orb-3"></div>
+
+        <div class="pr-avatar-wrap">
+            <div class="pr-avatar">@Iniciales()</div>
+            <div class="pr-avatar-ring"></div>
+        </div>
+
+        <div class="pr-name">@(string.IsNullOrWhiteSpace(_dto.Nombre) ? AuthState.Nombre : _dto.Nombre)</div>
+        <div class="pr-username">@@@AuthState.Username</div>
+
+        <span class="pr-role @(AuthState.IsAdmin ? "admin" : "")">
+            <i class="fas @(AuthState.IsAdmin ? "fa-shield-alt" : "fa-user-tie")"></i>
+            @(AuthState.IsAdmin ? "Administrador" : "Empleado")
+        </span>
+
+        <div class="pr-strip">
+            <div class="pr-stat">
+                <div class="pr-stat-val">
+                    @if (!string.IsNullOrWhiteSpace(_dto.Email)) { <i class="fas fa-check" style="color:#34d399;font-size:.9rem;"></i> } else { <span style="color:rgba(255,255,255,.3);">—</span> }
+                </div>
+                <div class="pr-stat-label">Email</div>
+            </div>
+            <div class="pr-stat">
+                <div class="pr-stat-val">
+                    @if (_tieneSmtpPassword) { <i class="fas fa-check" style="color:#34d399;font-size:.9rem;"></i> } else { <span style="color:rgba(255,255,255,.3);">—</span> }
+                </div>
+                <div class="pr-stat-label">SMTP</div>
+            </div>
+            <div class="pr-stat">
+                <div class="pr-stat-val" style="color:#a5b4fc;">@DateTime.Now.ToString("dd/MM/yy")</div>
+                <div class="pr-stat-label">Sesión activa</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── CARDS ── -->
+    <div class="row g-4 justify-content-center">
+
+        <!-- Datos de cuenta -->
+        <div class="col-xl-5 col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="pr-ch">
+                    <div class="pr-ch-icon indigo"><i class="fas fa-id-card"></i></div>
+                    <div>
+                        <div class="pr-ch-title">Datos de la cuenta</div>
+                        <div class="pr-ch-sub">Nombre, email y contraseña</div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre completo</label>
+                        <input class="form-control" @bind="_dto.Nombre" placeholder="Tu nombre completo" />
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Email personal</label>
+                        <input class="form-control" type="email" @bind="_dto.Email" placeholder="correo@ejemplo.com" />
+                        <div class="form-text">Contacto personal del usuario, no afecta al correo del sistema.</div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <hr class="flex-grow-1 m-0" />
+                        <span class="text-muted small px-2"><i class="fas fa-lock me-1"></i>Cambiar contraseña</span>
+                        <hr class="flex-grow-1 m-0" />
+                    </div>
+                    <div class="text-muted small mb-3">Deja los campos vacíos si no quieres cambiarla.</div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Contraseña actual</label>
+                        <input class="form-control" type="password" @bind="_dto.PasswordActual"
+                               placeholder="••••••••" autocomplete="current-password" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nueva contraseña</label>
+                        <input class="form-control" type="password" @bind="_dto.PasswordNueva"
+                               placeholder="Mínimo 6 caracteres" autocomplete="new-password" />
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Confirmar contraseña</label>
+                        <input class="form-control" type="password" @bind="_confirmar"
+                               placeholder="Repite la nueva contraseña" autocomplete="new-password" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_errorPerfil))
+                    {
+                        <div class="alert alert-danger py-2 small mb-3">
+                            <i class="fas fa-times-circle me-1"></i>@_errorPerfil
+                        </div>
+                    }
+
+                    <button class="btn btn-primary w-100" @onclick="GuardarPerfil" disabled="@_guardandoPerfil">
+                        @if (_guardandoPerfil) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        <i class="fas fa-save me-1"></i>Guardar datos
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna derecha -->
+        <div class="col-xl-5 col-lg-6">
+
+            <!-- SMTP -->
+            <div class="card shadow-sm mb-4">
+                <div class="pr-ch">
+                    <div class="pr-ch-icon green"><i class="fas fa-envelope"></i></div>
+                    <div>
+                        <div class="pr-ch-title">Correo saliente (SMTP)</div>
+                        <div class="pr-ch-sub">Contraseña para enviar emails y facturas</div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert @(_tieneSmtpPassword ? "alert-success" : "alert-warning") py-2 small mb-3">
+                        @if (_tieneSmtpPassword)
+                        {
+                            <i class="fas fa-check-circle me-1"></i><span>Contraseña SMTP configurada.</span>
+                        }
+                        else
+                        {
+                            <i class="fas fa-exclamation-triangle me-1"></i><span>Sin contraseña SMTP — los emails no funcionarán.</span>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Nueva contraseña de correo</label>
+                        <input class="form-control" type="password" @bind="_smtpPasswordNueva"
+                               placeholder="@(_tieneSmtpPassword ? "Vacío = no cambiar" : "Contraseña de aplicación Gmail...")"
+                               autocomplete="new-password" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confirmar contraseña</label>
+                        <input class="form-control" type="password" @bind="_smtpPasswordConfirmar"
+                               placeholder="Repite la contraseña" autocomplete="new-password" />
+                    </div>
+
+                    <div class="alert alert-info py-2 small mb-3">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Servidor, puerto y usuario SMTP se configuran en
+                        <a href="/empresa" class="alert-link fw-semibold">Empresa</a>.
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_errorSmtp))
+                    {
+                        <div class="alert alert-danger py-2 small mb-3">
+                            <i class="fas fa-times-circle me-1"></i>@_errorSmtp
+                        </div>
+                    }
+
+                    <button class="btn btn-success w-100" @onclick="GuardarSmtp" disabled="@_guardandoSmtp">
+                        @if (_guardandoSmtp) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                        <i class="fas fa-key me-1"></i>Guardar contraseña SMTP
+                    </button>
+                </div>
+            </div>
+
+            <!-- Accesos rápidos -->
+            <div class="card shadow-sm">
+                <div class="pr-ch">
+                    <div class="pr-ch-icon amber"><i class="fas fa-bolt"></i></div>
+                    <div>
+                        <div class="pr-ch-title">Accesos rápidos</div>
+                        <div class="pr-ch-sub">Secciones relacionadas con tu cuenta</div>
+                    </div>
+                </div>
+                <div>
+                    <a href="/empresa" class="pr-link">
+                        <div class="pr-link-icon" style="background:rgba(99,102,241,.08);color:#6366f1;">
+                            <i class="fas fa-building"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="fw-600 small">Configuración de empresa</div>
+                            <div class="text-muted" style="font-size:.73rem;">Nombre, dirección, SMTP, facturación</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-muted" style="font-size:.7rem;"></i>
+                    </a>
+                    @if (AuthState.IsAdmin)
+                    {
+                        <a href="/admin/usuarios" class="pr-link">
+                            <div class="pr-link-icon" style="background:rgba(239,68,68,.08);color:#ef4444;">
+                                <i class="fas fa-users-cog"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="fw-600 small">Gestión de usuarios</div>
+                                <div class="text-muted" style="font-size:.73rem;">Crear, editar y gestionar cuentas del sistema</div>
+                            </div>
+                            <i class="fas fa-chevron-right text-muted" style="font-size:.7rem;"></i>
+                        </a>
+                    }
+                    <a href="/cliente" target="_blank" class="pr-link">
+                        <div class="pr-link-icon" style="background:rgba(16,185,129,.08);color:#10b981;">
+                            <i class="fas fa-mobile-alt"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="fw-600 small">Portal del cliente</div>
+                            <div class="text-muted" style="font-size:.73rem;">Ver la página pública como la ve el cliente</div>
+                        </div>
+                        <i class="fas fa-external-link-alt text-muted" style="font-size:.7rem;"></i>
+                    </a>
+                    <a href="/inventario/alertas" class="pr-link">
+                        <div class="pr-link-icon" style="background:rgba(245,158,11,.08);color:#f59e0b;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="fw-600 small">Alertas de stock</div>
+                            <div class="text-muted" style="font-size:.73rem;">Productos que necesitan reposición</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-muted" style="font-size:.7rem;"></i>
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+    UpdatePerfilDto _dto      = new();
+    string _confirmar              = string.Empty;
+    string _smtpPasswordNueva      = string.Empty;
+    string _smtpPasswordConfirmar  = string.Empty;
+    bool   _tieneSmtpPassword;
+
+    bool   _cargando = true;
+    bool   _guardandoPerfil, _guardandoSmtp;
+    string _errorPerfil = string.Empty;
+    string _errorSmtp   = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var perfil = await Svc.GetPerfilAsync();
+            if (perfil != null)
+            {
+                _dto.Nombre        = perfil.Nombre;
+                _dto.Email         = perfil.Email;
+                _tieneSmtpPassword = perfil.TieneSmtpPassword;
+            }
+        }
+        catch { }
+        finally { _cargando = false; }
+    }
+
+    string Iniciales()
+    {
+        var n = AuthState.Nombre ?? "";
+        var p = n.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return p.Length >= 2 ? $"{p[0][0]}{p[1][0]}".ToUpper()
+             : n.Length > 0  ? n[..1].ToUpper() : "?";
+    }
+
+    async Task GuardarPerfil()
+    {
+        _errorPerfil = string.Empty;
+        if (string.IsNullOrWhiteSpace(_dto.Nombre))
+        { _errorPerfil = "El nombre es obligatorio."; return; }
+
+        if (!string.IsNullOrWhiteSpace(_dto.PasswordNueva) || !string.IsNullOrWhiteSpace(_confirmar))
+        {
+            if (_dto.PasswordNueva != _confirmar)
+            { _errorPerfil = "Las contraseñas nuevas no coinciden."; return; }
+        }
+        else { _dto.PasswordNueva = null; _dto.PasswordActual = null; }
+
+        _dto.SmtpPasswordNueva = null;
+        _guardandoPerfil = true;
+        try
+        {
+            var (ok, msg) = await Svc.UpdatePerfilAsync(_dto);
+            if (ok)
+            {
+                Notif.Success("Datos de cuenta actualizados.");
+                _dto.PasswordActual = null;
+                _dto.PasswordNueva  = null;
+                _confirmar          = string.Empty;
+            }
+            else _errorPerfil = msg;
+        }
+        catch (Exception ex) { _errorPerfil = "Error: " + ex.Message; }
+        finally { _guardandoPerfil = false; }
+    }
+
+    async Task GuardarSmtp()
+    {
+        _errorSmtp = string.Empty;
+        if (string.IsNullOrWhiteSpace(_smtpPasswordNueva))
+        { _errorSmtp = "Ingresa la nueva contraseña de correo."; return; }
+        if (_smtpPasswordNueva != _smtpPasswordConfirmar)
+        { _errorSmtp = "Las contraseñas de correo no coinciden."; return; }
+
+        var dtoSmtp = new UpdatePerfilDto
+        {
+            Nombre            = _dto.Nombre,
+            Email             = _dto.Email,
+            SmtpPasswordNueva = _smtpPasswordNueva
+        };
+
+        _guardandoSmtp = true;
+        try
+        {
+            var (ok, msg) = await Svc.UpdatePerfilAsync(dtoSmtp);
+            if (ok)
+            {
+                Notif.Success("Contraseña de correo actualizada.");
+                _tieneSmtpPassword     = true;
+                _smtpPasswordNueva     = string.Empty;
+                _smtpPasswordConfirmar = string.Empty;
+            }
+            else _errorSmtp = msg;
+        }
+        catch (Exception ex) { _errorSmtp = "Error: " + ex.Message; }
+        finally { _guardandoSmtp = false; }
+    }
+}

@@ -1,0 +1,143 @@
+@page "/inventario/alertas"
+@rendermode InteractiveServer
+@inject InventarioApiService InvSvc
+@inject ProductoApiService ProductoSvc
+@inject NavigationManager Nav
+@inject NotificacionService Notif
+
+<PageTitle>Alertas de stock — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Alertas de stock bajo</h4>
+    <div class="d-flex gap-2">
+        <a href="/inventario/kardex" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-history me-1"></i>Kardex
+        </a>
+        <a href="/compras/nueva" class="btn btn-primary btn-sm">
+            <i class="fas fa-shopping-cart me-1"></i>Nueva compra
+        </a>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    @if (!_alertas.Any())
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                <h5 class="text-success">¡Todo en orden!</h5>
+                <p class="text-muted">No hay productos con stock bajo en este momento.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning d-flex align-items-center mb-3">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>@_alertas.Count producto(s)</strong> &nbsp;por debajo del stock mínimo.
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Código</th>
+                            <th>Producto</th>
+                            <th>Categoría</th>
+                            <th class="text-center">Stock actual</th>
+                            <th class="text-center">Stock mínimo</th>
+                            <th class="text-center text-danger">Faltan</th>
+                            <th class="text-end">Ajuste rápido</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in _alertas.OrderByDescending(x => x.UnidadesFaltantes))
+                        {
+                            <tr class="stock-bajo">
+                                <td><small class="text-muted">@(a.Codigo ?? "—")</small></td>
+                                <td><strong>@a.Nombre</strong></td>
+                                <td><small>@(a.Categoria ?? "—")</small></td>
+                                <td class="text-center">
+                                    <span class="badge bg-danger fs-6">@a.Stock</span>
+                                </td>
+                                <td class="text-center text-muted">@a.StockMinimo</td>
+                                <td class="text-center">
+                                    <span class="fw-bold text-danger">@a.UnidadesFaltantes</span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-flex gap-1 justify-content-end align-items-center">
+                                        <input class="form-control form-control-sm text-center"
+                                               style="width:80px" type="number" min="0"
+                                               value="@(_ajustes.GetValueOrDefault(a.Id, a.StockMinimo * 2))"
+                                               @oninput="e => SetAjuste(a.Id, e.Value?.ToString())" />
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                @onclick="() => AjustarStock(a.Id)"
+                                                disabled="@_ajustando.Contains(a.Id)">
+                                            @if (_ajustando.Contains(a.Id))
+                                            {
+                                                <span class="spinner-border spinner-border-sm"></span>
+                                            }
+                                            else
+                                            {
+                                                <i class="fas fa-arrow-up"></i>
+                                            }
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    List<ProductoStockBajoDto> _alertas = new();
+    Dictionary<int, int> _ajustes = new();
+    HashSet<int> _ajustando = new();
+    bool _cargando = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Cargar();
+    }
+
+    async Task Cargar()
+    {
+        _cargando = true;
+        _alertas = await InvSvc.GetStockBajoAsync();
+        foreach (var a in _alertas)
+        {
+            if (!_ajustes.ContainsKey(a.Id))
+                _ajustes[a.Id] = a.StockMinimo * 2;
+        }
+        _cargando = false;
+    }
+
+    void SetAjuste(int id, string? val)
+    {
+        if (int.TryParse(val, out var v) && v >= 0)
+            _ajustes[id] = v;
+    }
+
+    async Task AjustarStock(int productoId)
+    {
+        if (!_ajustes.TryGetValue(productoId, out var nuevoStock)) return;
+        _ajustando.Add(productoId);
+        var dto = new AjusteStockDto { ProductoId = productoId, NuevoStock = nuevoStock, Observaciones = "Reposición manual desde alertas" };
+        var (ok, msg) = await ProductoSvc.AjustarStockAsync(dto);
+        _ajustando.Remove(productoId);
+        if (ok)
+        {
+            Notif.Success($"Stock ajustado a {nuevoStock} unidades.");
+            await Cargar();
+        }
+        else Notif.Error(msg);
+    }
+}

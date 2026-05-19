@@ -1,0 +1,542 @@
+@page "/whatsapp"
+@rendermode InteractiveServer
+@inject WhatsAppApiService   WaSvc
+@inject ClienteApiService    ClienteSvc
+@inject ReparacionApiService RepSvc
+@inject NotificacionService  Notif
+
+<PageTitle>Avisos WhatsApp — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fab fa-whatsapp me-2" style="color:#25d366"></i>Avisos por WhatsApp</h4>
+    <span class="badge" style="background:rgba(37,211,102,.15);color:#25d366;border:1px solid rgba(37,211,102,.3);font-size:.75rem;padding:.35em .7em">
+        <i class="fas fa-circle me-1" style="font-size:.5rem"></i>
+        Avisos a clientes
+    </span>
+</div>
+
+<div class="alert mb-3 py-2 small" style="background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.2);color:#86efac">
+    <i class="fab fa-whatsapp me-2"></i>
+    El botón <strong><i class="fab fa-whatsapp"></i></strong> abre WhatsApp directamente con el mensaje listo.
+    Si tienes Twilio configurado en <a href="/empresa" class="alert-link" style="color:#86efac">Configuración</a>, el botón <i class="fas fa-paper-plane"></i> envía automáticamente.
+</div>
+
+<div class="row g-3">
+
+    <!-- ── Columna izquierda: redactor ──────────────────────── -->
+    <div class="col-lg-7">
+
+        <!-- Plantillas -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header"><i class="fas fa-magic me-2 text-primary"></i>Plantillas de mensaje</div>
+            <div class="card-body pb-2">
+                <div class="row g-2">
+                    @foreach (var p in _plantillas)
+                    {
+                        <div class="col-6 col-md-4">
+                            <button class="btn btn-sm w-100 text-start @(_plantillaActiva == p.Id ? "btn-primary" : "btn-outline-secondary")"
+                                    @onclick="() => AplicarPlantilla(p)">
+                                <i class="@p.Icono me-1"></i>@p.Nombre
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Editor del mensaje -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-pen me-2 text-primary"></i>Mensaje</span>
+                <small class="text-muted">@_mensaje.Length / 1000 chars</small>
+            </div>
+            <div class="card-body">
+                <textarea class="form-control"
+                          rows="5"
+                          maxlength="1000"
+                          placeholder="Escribe el mensaje aquí o usa una plantilla…"
+                          @bind="_mensaje"></textarea>
+                <div class="mt-2 d-flex gap-2 flex-wrap">
+                    <small class="text-muted">Variables disponibles:</small>
+                    @foreach (var v in _variables)
+                    {
+                        <button class="btn btn-sm py-0 px-1" style="font-size:.7rem;background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.25)"
+                                @onclick="() => InsertarVariable(v)">@v</button>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Envío masivo -->
+        @if (_seleccionados.Count > 0)
+        {
+            <div class="card shadow-sm mb-3" style="border-left:3px solid #25d366">
+                <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                    <span class="small"><i class="fas fa-users me-2" style="color:#25d366"></i>
+                        <strong>@_seleccionados.Count</strong> cliente@(_seleccionados.Count != 1 ? "s" : "") seleccionado@(_seleccionados.Count != 1 ? "s" : "")
+                    </span>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="LimpiarSeleccion">
+                            <i class="fas fa-times me-1"></i>Deseleccionar
+                        </button>
+                        <button class="btn btn-sm" style="background:#25d366;color:#fff"
+                                @onclick="EnviarMasivo" disabled="@(_enviandoMasivo || string.IsNullOrWhiteSpace(_mensaje))">
+                            @if (_enviandoMasivo)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="fab fa-whatsapp me-1"></i>Enviar a todos
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Lista de clientes -->
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-users me-2 text-primary"></i>Clientes destinatarios</span>
+                <div class="d-flex gap-2 align-items-center">
+                    <select class="form-select form-select-sm" style="width:auto" @bind="_filtroTipo">
+                        <option value="todos">Todos</option>
+                        <option value="con_reparacion">Con reparación activa</option>
+                        <option value="reparacion_lista">Reparación lista</option>
+                        <option value="con_telefono">Con teléfono</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="SeleccionarTodos">
+                        <i class="fas fa-check-double me-1"></i>Todos
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <!-- Buscador -->
+                <div class="px-3 pt-3 pb-2">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input class="form-control" placeholder="Buscar por nombre o teléfono…"
+                               @bind="_busqueda" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                @if (_cargando)
+                {
+                    <div class="text-center py-4"><span class="spinner-border spinner-border-sm"></span></div>
+                }
+                else
+                {
+                    var lista = ClientesFiltrados;
+                    @if (!lista.Any())
+                    {
+                        <div class="text-center text-muted py-4 small">No hay clientes que coincidan.</div>
+                    }
+                    else
+                    {
+                        <div style="max-height:380px;overflow-y:auto">
+                            <table class="table align-middle mb-0 table-sm">
+                                <tbody>
+                                    @foreach (var c in lista)
+                                    {
+                                        var tieneTel = !string.IsNullOrWhiteSpace(c.Telefono);
+                                        var msg = _mensaje
+                                            .Replace("{nombre}", c.Nombre)
+                                            .Replace("{apellidos}", c.Apellidos ?? "")
+                                            .Replace("{nombre_completo}", c.NombreCompleto)
+                                            .Replace("{telefono}", c.Telefono ?? "");
+                                        var waUrl = tieneTel
+                                            ? $"https://wa.me/{new string(c.Telefono!.Where(char.IsDigit).ToArray())}?text={Uri.EscapeDataString(msg)}"
+                                            : "#";
+
+                                        <tr class="@(_seleccionados.Contains(c.Id) ? "table-active" : "")">
+                                            <td style="width:36px" class="ps-3">
+                                                <input type="checkbox"
+                                                       class="form-check-input"
+                                                       disabled="@(!tieneTel)"
+                                                       checked="@_seleccionados.Contains(c.Id)"
+                                                       @onchange="e => ToggleSeleccion(c.Id, (bool)e.Value!)" />
+                                            </td>
+                                            <td>
+                                                <div class="fw-semibold small">@c.NombreCompleto</div>
+                                                @if (tieneTel)
+                                                {
+                                                    <div class="text-muted" style="font-size:.75rem">
+                                                        <i class="fas fa-phone me-1 opacity-50"></i>@c.Telefono
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div style="font-size:.72rem;color:#f59e0b">
+                                                        <i class="fas fa-exclamation-triangle me-1"></i>Sin teléfono
+                                                    </div>
+                                                }
+                                            </td>
+                                            <td class="text-end pe-3">
+                                                <div class="d-flex gap-1 justify-content-end">
+                                                    @if (tieneTel)
+                                                    {
+                                                        <button class="btn btn-sm btn-outline-secondary"
+                                                                title="Enviar vía API (requiere Twilio)"
+                                                                @onclick="() => EnviarUno(c)"
+                                                                disabled="@(string.IsNullOrWhiteSpace(_mensaje))">
+                                                            <i class="fas fa-paper-plane"></i>
+                                                        </button>
+                                                        <a href="@waUrl" target="_blank" rel="noopener"
+                                                           class="btn btn-sm"
+                                                           style="background:rgba(37,211,102,.15);color:#25d366;border:1px solid rgba(37,211,102,.3)"
+                                                           title="Abrir en WhatsApp">
+                                                            <i class="fab fa-whatsapp"></i>
+                                                        </a>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="btn btn-sm btn-outline-secondary disabled opacity-50">
+                                                            <i class="fab fa-whatsapp"></i>
+                                                        </span>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="px-3 py-2 text-muted" style="font-size:.75rem;border-top:1px solid var(--border)">
+                            @lista.Count() clientes · @lista.Count(c => !string.IsNullOrWhiteSpace(c.Telefono)) con teléfono
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Columna derecha: reparaciones listas + historial ─── -->
+    <div class="col-lg-5">
+
+        <!-- Reparaciones listas para recoger -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-check-circle me-2" style="color:#34d399"></i>Reparaciones listas</span>
+                <span class="badge" style="background:rgba(52,211,153,.12);color:#34d399;border:1px solid rgba(52,211,153,.25)">
+                    @_reparacionesListas.Count
+                </span>
+            </div>
+            <div class="card-body p-0">
+                @if (!_reparacionesListas.Any())
+                {
+                    <div class="text-center text-muted py-3 small">No hay reparaciones pendientes de entrega.</div>
+                }
+                else
+                {
+                    <div style="max-height:260px;overflow-y:auto">
+                        @foreach (var r in _reparacionesListas)
+                        {
+                            var msgRep = $"Hola {r.ClienteNombre}, le informamos que su {r.Dispositivo} {r.Marca} {r.Modelo} (orden {r.NumeroOrden}) ya está listo para recoger en nuestra tienda. ¡Gracias!".Trim();
+                            var tel    = r.ClienteTelefono ?? "";
+                            var waUrl  = string.IsNullOrWhiteSpace(tel) ? "#"
+                                : $"https://wa.me/{new string(tel.Where(char.IsDigit).ToArray())}?text={Uri.EscapeDataString(msgRep)}";
+
+                            <div class="px-3 py-2 d-flex justify-content-between align-items-center"
+                                 style="border-bottom:1px solid var(--border)">
+                                <div>
+                                    <div class="small fw-semibold">@r.ClienteNombre</div>
+                                    <div class="text-muted" style="font-size:.72rem">@r.Dispositivo @r.Marca @r.Modelo · @r.NumeroOrden</div>
+                                </div>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            title="Usar mensaje predefinido"
+                                            @onclick="() => UsarMensajeReparacion(r)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                    @if (!string.IsNullOrWhiteSpace(tel))
+                                    {
+                                        <a href="@waUrl" target="_blank" rel="noopener"
+                                           class="btn btn-sm"
+                                           style="background:rgba(37,211,102,.15);color:#25d366;border:1px solid rgba(37,211,102,.3)"
+                                           title="Enviar aviso en WhatsApp">
+                                            <i class="fab fa-whatsapp"></i>
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Historial de mensajes enviados -->
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-history me-2 text-primary"></i>Historial reciente</span>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="CargarHistorial">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div class="card-body p-0">
+                @if (_historial.Count == 0)
+                {
+                    <div class="text-center text-muted py-3 small">Sin mensajes enviados todavía.</div>
+                }
+                else
+                {
+                    <div style="max-height:280px;overflow-y:auto">
+                        @foreach (var h in _historial)
+                        {
+                            <div class="px-3 py-2 d-flex justify-content-between align-items-start"
+                                 style="border-bottom:1px solid var(--border)">
+                                <div style="min-width:0">
+                                    <div class="small fw-semibold text-truncate">@h.Destinatario</div>
+                                    <div class="text-muted text-truncate" style="font-size:.72rem;max-width:200px">@h.MensajeResumen</div>
+                                    <div class="text-muted" style="font-size:.68rem">@h.FechaCreacion.ToString("dd/MM HH:mm")</div>
+                                </div>
+                                <span class="badge ms-2 flex-shrink-0"
+                                      style="@(h.Estado=="enviado"
+                                            ? "background:rgba(52,211,153,.12);color:#34d399;border:1px solid rgba(52,211,153,.25)"
+                                            : "background:rgba(248,113,113,.1);color:#f87171;border:1px solid rgba(248,113,113,.25)")">
+                                    @(h.Estado == "enviado" ? "Enviado" : "Error")
+                                </span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal resultados envío masivo -->
+@if (_resultadosMasivo.Count > 0)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fab fa-whatsapp me-2" style="color:#25d366"></i>Resultado del envío</h5>
+                    <button type="button" class="btn-close" @onclick="() => _resultadosMasivo.Clear()"></button>
+                </div>
+                <div class="modal-body p-0">
+                    @foreach (var r in _resultadosMasivo)
+                    {
+                        <div class="px-3 py-2 d-flex justify-content-between align-items-center"
+                             style="border-bottom:1px solid var(--border)">
+                            <div>
+                                <div class="small fw-semibold">@r.ClienteNombre</div>
+                                <div class="text-muted" style="font-size:.72rem">@(string.IsNullOrEmpty(r.Telefono) ? "Sin teléfono" : r.Telefono)</div>
+                            </div>
+                            <span class="badge"
+                                  style="@(r.Ok ? "background:rgba(52,211,153,.12);color:#34d399;border:1px solid rgba(52,211,153,.25)" : "background:rgba(248,113,113,.1);color:#f87171;border:1px solid rgba(248,113,113,.25)")">
+                                @(r.Ok ? "Enviado" : r.Mensaje)
+                            </span>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <span class="me-auto small text-muted">
+                        @_resultadosMasivo.Count(r => r.Ok) de @_resultadosMasivo.Count enviados vía API
+                    </span>
+                    <button class="btn btn-primary btn-sm" @onclick="CerrarResultados">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    // ── Estado ─────────────────────────────────────────────────
+    bool _cargando       = true;
+    bool _enviandoMasivo = false;
+    string _mensaje      = string.Empty;
+    string _busqueda    = string.Empty;
+    string _filtroTipo  = "todos";
+    string _plantillaActiva = string.Empty;
+
+    List<ClienteDto>           _clientes           = new();
+    List<ReparacionDto>        _reparacionesListas  = new();
+    List<WhatsAppLogDto>       _historial           = new();
+    List<WhatsAppResultadoDto> _resultadosMasivo    = new();
+    HashSet<int>               _seleccionados       = new();
+
+    // ── Plantillas predefinidas ─────────────────────────────────
+    record Plantilla(string Id, string Nombre, string Icono, string Texto);
+
+    readonly List<Plantilla> _plantillas = new()
+    {
+        new("lista",       "Reparación lista",   "fas fa-check-circle",
+            "Hola {nombre}, le informamos que su dispositivo ya está listo para recoger en nuestra tienda. ¡Gracias por confiar en CellShop!"),
+
+        new("presupuesto", "Presupuesto",         "fas fa-file-invoice",
+            "Hola {nombre}, hemos revisado su dispositivo y le enviamos el presupuesto para la reparación. Si tiene alguna duda, contáctenos."),
+
+        new("recordatorio","Recordatorio recogida","fas fa-bell",
+            "Hola {nombre}, le recordamos que su dispositivo lleva varios días listo en nuestro taller. Le esperamos para recogerlo. ¡Gracias!"),
+
+        new("garantia",    "Garantía activa",     "fas fa-shield-alt",
+            "Hola {nombre}, recuerde que su reparación cuenta con garantía. Si tiene cualquier problema, no dude en contactarnos."),
+
+        new("promo",       "Promoción",           "fas fa-tag",
+            "Hola {nombre}, en CellShop tenemos una oferta especial esta semana. ¡Consúltenos sin compromiso!"),
+
+        new("personalizado","Mensaje libre",      "fas fa-pen", ""),
+    };
+
+    readonly string[] _variables = ["{nombre}", "{apellidos}", "{nombre_completo}", "{telefono}"];
+
+    // ── Computed ────────────────────────────────────────────────
+    IEnumerable<ClienteDto> ClientesFiltrados
+    {
+        get
+        {
+            var q = _clientes.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                var b = _busqueda.ToLower();
+                q = q.Where(c => c.NombreCompleto.ToLower().Contains(b) ||
+                                 (c.Telefono ?? "").Contains(b));
+            }
+
+            q = _filtroTipo switch
+            {
+                "con_telefono"    => q.Where(c => !string.IsNullOrWhiteSpace(c.Telefono)),
+                "con_reparacion"  => q.Where(c => _reparacionesListas.Any(r => r.ClienteId == c.Id)),
+                "reparacion_lista"=> q.Where(c => _reparacionesListas.Any(r => r.ClienteId == c.Id)),
+                _                 => q
+            };
+
+            return q;
+        }
+    }
+
+    // ── Inicialización ─────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        var tClientes  = ClienteSvc.GetAllAsync(soloActivos: true);
+        var tReps      = RepSvc.GetAllAsync();
+        var tHistorial = WaSvc.GetHistorialAsync(50);
+        await Task.WhenAll(tClientes, tReps, tHistorial);
+
+        _clientes           = tClientes.Result;
+        _reparacionesListas = tReps.Result.Where(r => r.Estado == "reparado").ToList();
+        _historial          = tHistorial.Result;
+        _cargando           = false;
+    }
+
+    // ── Acciones ────────────────────────────────────────────────
+    void AplicarPlantilla(Plantilla p)
+    {
+        _plantillaActiva = p.Id;
+        if (!string.IsNullOrEmpty(p.Texto))
+            _mensaje = p.Texto;
+    }
+
+    void InsertarVariable(string variable)
+    {
+        _mensaje += variable;
+    }
+
+    void UsarMensajeReparacion(ReparacionDto r)
+    {
+        _plantillaActiva = "lista";
+        _mensaje = $"Hola {r.ClienteNombre}, le informamos que su {r.Dispositivo} {r.Marca} {r.Modelo} (orden {r.NumeroOrden}) ya está listo para recoger en nuestra tienda. ¡Gracias!".Trim();
+    }
+
+    void ToggleSeleccion(int id, bool checked_)
+    {
+        if (checked_) _seleccionados.Add(id);
+        else          _seleccionados.Remove(id);
+    }
+
+    void SeleccionarTodos()
+    {
+        foreach (var c in ClientesFiltrados.Where(c => !string.IsNullOrWhiteSpace(c.Telefono)))
+            _seleccionados.Add(c.Id);
+    }
+
+    void LimpiarSeleccion() => _seleccionados.Clear();
+
+    async Task EnviarUno(ClienteDto cliente)
+    {
+        if (string.IsNullOrWhiteSpace(_mensaje)) return;
+
+        var msg = _mensaje
+            .Replace("{nombre}",         cliente.Nombre)
+            .Replace("{apellidos}",      cliente.Apellidos ?? "")
+            .Replace("{nombre_completo}",cliente.NombreCompleto)
+            .Replace("{telefono}",       cliente.Telefono ?? "");
+
+        var (ok, _, msj) = await WaSvc.EnviarAsync(new EnviarWhatsAppDto
+        {
+            ClienteId = cliente.Id,
+            Mensaje   = msg
+        });
+
+        if (ok) Notif.Success(msj);
+        else    Notif.Error(msj);
+
+        await CargarHistorial();
+    }
+
+    async Task EnviarMasivo()
+    {
+        if (string.IsNullOrWhiteSpace(_mensaje) || _seleccionados.Count == 0) return;
+
+        _enviandoMasivo = true;
+
+        var clientesSelec = _clientes.Where(c => _seleccionados.Contains(c.Id)).ToList();
+        _resultadosMasivo.Clear();
+
+        foreach (var c in clientesSelec)
+        {
+            if (string.IsNullOrWhiteSpace(c.Telefono))
+            {
+                _resultadosMasivo.Add(new WhatsAppResultadoDto
+                {
+                    ClienteId     = c.Id,
+                    ClienteNombre = c.NombreCompleto,
+                    Ok            = false,
+                    Mensaje       = "Sin teléfono registrado."
+                });
+                continue;
+            }
+
+            var msg = _mensaje
+                .Replace("{nombre}",         c.Nombre)
+                .Replace("{apellidos}",      c.Apellidos ?? "")
+                .Replace("{nombre_completo}",c.NombreCompleto)
+                .Replace("{telefono}",       c.Telefono ?? "");
+
+            var (ok, resultado, _) = await WaSvc.EnviarAsync(new EnviarWhatsAppDto
+            {
+                ClienteId = c.Id,
+                Mensaje   = msg
+            });
+
+            _resultadosMasivo.Add(resultado ?? new WhatsAppResultadoDto
+            {
+                ClienteId     = c.Id,
+                ClienteNombre = c.NombreCompleto,
+                Ok            = false,
+                Mensaje       = "Error desconocido."
+            });
+
+            StateHasChanged();
+        }
+
+        _enviandoMasivo = false;
+        _seleccionados.Clear();
+        await CargarHistorial();
+    }
+
+    async Task CerrarResultados()
+    {
+        _resultadosMasivo.Clear();
+        await CargarHistorial();
+    }
+
+    async Task CargarHistorial()
+    {
+        _historial = await WaSvc.GetHistorialAsync(50);
+    }
+}

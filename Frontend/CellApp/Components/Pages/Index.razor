@@ -1,0 +1,378 @@
+@page "/"
+@rendermode InteractiveServer
+@inject DashboardApiService DashSvc
+@inject AuthStateService AuthState
+@inject AppStateService AppState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Dashboard — CellShop</PageTitle>
+
+<!-- ── Cabecera ── -->
+<div class="dash-hero mb-4">
+    <div class="dash-hero-text">
+        <h4 class="mb-1 fw-800" style="letter-spacing:-.025em;">@Saludo(), @PrimerNombre() 👋</h4>
+        <span class="text-muted small">@DateTime.Now.ToString("dddd dd/MM/yyyy").ToLower()</span>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm dash-hero-refresh" @onclick="Cargar">
+        <i class="fas fa-sync-alt me-1"></i>Actualizar
+    </button>
+</div>
+
+<!-- ── KPIs ── -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card kc-blue @(_cargando ? "kc-skeleton" : "")">
+            <div class="kc-bg-icon"><i class="fas fa-euro-sign"></i></div>
+            <div class="kc-label">Ventas hoy</div>
+            @if (!_cargando && _data != null)
+            {
+                <div class="kc-value">@_data.VentasHoy.ImporteTotal.ToString("N2") €</div>
+                <div class="kc-sub">@_data.VentasHoy.TotalVentas transacciones</div>
+            }
+            else
+            {
+                <div class="kc-value">—</div>
+                <div class="kc-sub">Cargando...</div>
+            }
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card kc-green">
+            <div class="kc-bg-icon"><i class="fas fa-chart-line"></i></div>
+            <div class="kc-label">Ventas del mes</div>
+            @if (!_cargando && _data != null)
+            {
+                <div class="kc-value">@_data.VentasMes.ImporteTotal.ToString("N2") €</div>
+                <div class="kc-sub">@_data.VentasMes.TotalVentas ventas · @_data.VentasMes.TicketMedio.ToString("N2") € ticket</div>
+            }
+            else { <div class="kc-value">—</div><div class="kc-sub">Cargando...</div> }
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="kpi-card kc-orange">
+            <div class="kc-bg-icon"><i class="fas fa-tools"></i></div>
+            <div class="kc-label">Reparaciones abiertas</div>
+            @if (!_cargando && _data != null)
+            {
+                <div class="kc-value">@_data.ReparacionesAbiertas</div>
+                <div class="kc-sub">Entregadas hoy: @_data.ReparacionesEntregadasHoy</div>
+            }
+            else { <div class="kc-value">—</div><div class="kc-sub">Cargando...</div> }
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        @if (!_cargando && _data != null)
+        {
+            <div class="kpi-card @(_data.ProductosStockBajo > 0 ? "kc-red" : "kc-teal")">
+                <div class="kc-bg-icon">
+                    <i class="fas @(_data.ProductosStockBajo > 0 ? "fa-exclamation-triangle" : "fa-check-circle")"></i>
+                </div>
+                <div class="kc-label">Alertas de stock</div>
+                <div class="kc-value">@_data.ProductosStockBajo</div>
+                <div class="kc-sub">@(_data.ProductosStockBajo > 0 ? "Productos bajo mínimo" : "Stock en orden ✓")</div>
+            </div>
+        }
+        else
+        {
+            <div class="kpi-card kc-teal">
+                <div class="kc-bg-icon"><i class="fas fa-boxes"></i></div>
+                <div class="kc-label">Alertas de stock</div>
+                <div class="kc-value">—</div>
+                <div class="kc-sub">Cargando...</div>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- ── Acciones rápidas ── -->
+<div class="quick-actions mb-4">
+    <a href="/ventas/nueva" class="qa-btn qa-blue">
+        <div class="qa-icon"><i class="fas fa-cash-register"></i></div>
+        <span>Nueva venta</span>
+        <i class="fas fa-arrow-right qa-arrow"></i>
+    </a>
+    <a href="/reparaciones/nueva" class="qa-btn qa-orange">
+        <div class="qa-icon"><i class="fas fa-tools"></i></div>
+        <span>Nueva reparación</span>
+        <i class="fas fa-arrow-right qa-arrow"></i>
+    </a>
+    <a href="/clientes/nuevo" class="qa-btn qa-green">
+        <div class="qa-icon"><i class="fas fa-user-plus"></i></div>
+        <span>Nuevo cliente</span>
+        <i class="fas fa-arrow-right qa-arrow"></i>
+    </a>
+    <a href="/compras/nueva" class="qa-btn qa-purple">
+        <div class="qa-icon"><i class="fas fa-truck"></i></div>
+        <span>Nueva compra</span>
+        <i class="fas fa-arrow-right qa-arrow"></i>
+    </a>
+    <a href="/inventario/alertas" class="qa-btn qa-teal">
+        <div class="qa-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        <span>Ver alertas</span>
+        <i class="fas fa-arrow-right qa-arrow"></i>
+    </a>
+    <a href="/whatsapp" class="qa-btn qa-wa">
+        <div class="qa-icon"><i class="fab fa-whatsapp"></i></div>
+        <span>Avisos WhatsApp</span>
+        <i class="fas fa-arrow-right qa-arrow"></i>
+    </a>
+</div>
+
+<LoadingSpinner Cargando="_cargando" Texto="Cargando datos..." />
+
+@if (!_cargando && _data != null)
+{
+    <!-- ── Gráficas ── -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card h-100" style="border:none;box-shadow:var(--shadow-md);">
+                <div class="card-header">
+                    <span class="d-flex align-items-center gap-2">
+                        <span class="ch-dot" style="background:#6366f1;"></span>
+                        Ventas últimos 7 días
+                    </span>
+                    <span class="text-muted small">@_data.VentasUltimos7Dias.Sum(d => d.Total).ToString("N2") € total</span>
+                </div>
+                <div class="card-body" style="height:210px;position:relative;">
+                    <canvas id="chartVentas7d"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100" style="border:none;box-shadow:var(--shadow-md);">
+                <div class="card-header">
+                    <span class="d-flex align-items-center gap-2">
+                        <span class="ch-dot" style="background:#f59e0b;"></span>
+                        Reparaciones por estado
+                    </span>
+                    <span class="text-muted small">@_data.ReparacionesPorEstado.Sum(r => r.Cantidad) órdenes</span>
+                </div>
+                <div class="card-body" style="height:210px;position:relative;">
+                    <canvas id="chartReparEstado"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Actividad reciente ── -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card h-100" style="border:none;box-shadow:var(--shadow-md);">
+                <div class="card-header">
+                    <span class="d-flex align-items-center gap-2">
+                        <span class="ch-dot" style="background:#6366f1;"></span>
+                        Últimas ventas
+                    </span>
+                    <a href="/ventas" class="btn btn-sm btn-outline-primary">Ver todas</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr><th>Nº</th><th>Cliente</th><th>Total</th><th>Estado</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var v in _data.UltimasVentas)
+                            {
+                                <tr @onclick="() => IrAVenta(v.Id)" style="cursor:pointer;">
+                                    <td><code class="text-primary" style="font-size:.78rem;">@v.NumeroVenta</code></td>
+                                    <td class="fw-500">@v.ClienteNombre</td>
+                                    <td class="fw-700">@v.Total.ToString("N2") €</td>
+                                    <td><span class="badge-estado estado-@v.Estado">@v.Estado</span></td>
+                                </tr>
+                            }
+                            @if (!_data.UltimasVentas.Any())
+                            {
+                                <tr><td colspan="4"><div class="empty-state"><i class="fas fa-cash-register"></i><p>Sin ventas registradas</p></div></td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card h-100" style="border:none;box-shadow:var(--shadow-md);">
+                <div class="card-header">
+                    <span class="d-flex align-items-center gap-2">
+                        <span class="ch-dot" style="background:#f59e0b;"></span>
+                        Últimas reparaciones
+                    </span>
+                    <a href="/reparaciones" class="btn btn-sm btn-outline-warning">Ver todas</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr><th>Orden</th><th>Cliente</th><th>Dispositivo</th><th>Estado</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in _data.UltimasReparaciones)
+                            {
+                                <tr @onclick="() => IrAReparacion(r.Id)" style="cursor:pointer;"
+                                    class="prio-@r.Prioridad">
+                                    <td><code class="text-muted" style="font-size:.78rem;">@r.NumeroOrden</code></td>
+                                    <td class="fw-500">@r.ClienteNombre</td>
+                                    <td class="text-muted">@r.Dispositivo</td>
+                                    <td><span class="badge-estado estado-@r.Estado">@r.Estado</span></td>
+                                </tr>
+                            }
+                            @if (!_data.UltimasReparaciones.Any())
+                            {
+                                <tr><td colspan="4"><div class="empty-state"><i class="fas fa-tools"></i><p>Sin reparaciones recientes</p></div></td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Urgentes ── -->
+    @if (_data.UltimasReparaciones.Any(r => r.Prioridad is "urgente" or "alta"))
+    {
+        <div class="card mb-4" style="border:none;border-left:4px solid #ef4444;box-shadow:var(--shadow-md);">
+            <div class="card-header">
+                <span class="d-flex align-items-center gap-2">
+                    <i class="fas fa-fire text-danger"></i>
+                    Requieren atención urgente
+                </span>
+                <a href="/reparaciones" class="btn btn-sm btn-outline-danger">Ver reparaciones</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr><th>Orden</th><th>Cliente</th><th>Dispositivo</th><th>Prioridad</th><th>Estado</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _data.UltimasReparaciones.Where(r2 => r2.Prioridad is "urgente" or "alta"))
+                        {
+                            <tr @onclick="() => IrAReparacion(r.Id)" style="cursor:pointer;" class="prio-@r.Prioridad">
+                                <td><code class="text-muted" style="font-size:.78rem;">@r.NumeroOrden</code></td>
+                                <td class="fw-600">@r.ClienteNombre</td>
+                                <td>@r.Dispositivo</td>
+                                <td>
+                                    <span class="badge @(r.Prioridad == "urgente" ? "bg-danger" : "bg-warning text-dark")">
+                                        @(r.Prioridad == "urgente" ? "Urgente" : "Alta")
+                                    </span>
+                                </td>
+                                <td><span class="badge-estado estado-@r.Estado">@r.Estado</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- ── Stock bajo ── -->
+    @if (_data.AlertasStock.Any())
+    {
+        <div class="card" style="border:none;border-left:4px solid #f59e0b;box-shadow:var(--shadow-md);">
+            <div class="card-header">
+                <span class="d-flex align-items-center gap-2">
+                    <i class="fas fa-boxes text-warning"></i>
+                    Stock bajo
+                    <span class="badge bg-danger">@_data.AlertasStock.Count</span>
+                </span>
+                <a href="/inventario/alertas" class="btn btn-sm btn-outline-warning">Ver inventario</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr><th>Producto</th><th>Categoría</th><th>Actual</th><th>Mínimo</th><th>Faltan</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in _data.AlertasStock)
+                        {
+                            <tr>
+                                <td><strong>@a.Nombre</strong> <small class="text-muted">@a.Codigo</small></td>
+                                <td class="text-muted">@a.Categoria</td>
+                                <td><span class="badge bg-danger">@a.Stock</span></td>
+                                <td class="text-muted">@a.StockMinimo</td>
+                                <td class="text-danger fw-700">@a.UnidadesFaltantes ud.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    DashboardDto? _data;
+    bool _cargando = true;
+    bool _chartsInit;
+
+    protected override async Task OnInitializedAsync() => await Cargar();
+
+    async Task Cargar()
+    {
+        _cargando = true;
+        _chartsInit = false;
+        _data = await DashSvc.GetAsync();
+        if (_data != null)
+            AppState.SetStockAlertCount(_data.ProductosStockBajo);
+        _cargando = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_cargando && _data != null && !_chartsInit)
+        {
+            _chartsInit = true;
+            await InitChartsAsync();
+        }
+    }
+
+    async Task InitChartsAsync()
+    {
+        if (_data == null) return;
+        var labels  = _data.VentasUltimos7Dias.Select(d => d.Fecha).ToArray();
+        var totales = _data.VentasUltimos7Dias.Select(d => (double)d.Total).ToArray();
+        await JS.InvokeVoidAsync("initLineChart", "chartVentas7d", labels, totales);
+
+        var rLabels = _data.ReparacionesPorEstado.Select(r => EstadoLabel(r.Estado)).ToArray();
+        var rValues = _data.ReparacionesPorEstado.Select(r => r.Cantidad).ToArray();
+        await JS.InvokeVoidAsync("initDoughnutChart", "chartReparEstado", rLabels, rValues);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("destroyChart", "chartVentas7d");
+            await JS.InvokeVoidAsync("destroyChart", "chartReparEstado");
+        }
+        catch { }
+    }
+
+    static string EstadoLabel(string e) => e switch
+    {
+        "recibido"      => "Recibido",
+        "diagnosticado" => "Diagnosticado",
+        "en_reparacion" => "En reparación",
+        "reparado"      => "Reparado",
+        "entregado"     => "Entregado",
+        "no_reparable"  => "No reparable",
+        _               => e
+    };
+
+    void IrAVenta(int id)      => Nav.NavigateTo("/ventas/" + id);
+    void IrAReparacion(int id) => Nav.NavigateTo("/reparaciones/" + id);
+
+    string PrimerNombre()
+    {
+        var n = AuthState.Nombre ?? "";
+        var i = n.IndexOf(' ');
+        return i > 0 ? n[..i] : n;
+    }
+
+    string Saludo() => DateTime.Now.Hour switch
+    {
+        < 13 => "Buenos días",
+        < 21 => "Buenas tardes",
+        _    => "Buenas noches"
+    };
+}

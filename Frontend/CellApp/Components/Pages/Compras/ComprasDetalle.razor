@@ -1,0 +1,187 @@
+@page "/compras/{Id:int}"
+@rendermode InteractiveServer
+@inject CompraApiService Svc
+@inject EmpresaApiService EmpresaSvc
+@inject NavigationManager Nav
+@inject IConfiguration Config
+@inject NotificacionService Notif
+
+<PageTitle>Detalle de compra — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-shopping-cart me-2 text-primary"></i>Detalle de compra</h4>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm"
+                @onclick='() => VerPdf(_apiBase + $"/api/compras/{Id}/pdf", "Orden compra — " + (_compra?.NumeroCompra ?? ""))'>
+            <i class="fas fa-file-pdf me-1"></i>PDF
+        </button>
+        <WhatsAppBtn Telefono="@(_compra?.ProveedorTelefono ?? string.Empty)"
+                     Mensaje="@WaMsgProveedor()" />
+        <EnviarEmailBtn EmailPorDefecto="@(_emailProveedor)"
+                        Enviando="_enviandoEmail"
+                        OnEnviar="EnviarPdf" />
+        <a href="/compras" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Volver
+        </a>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando && _compra != null)
+{
+    <div class="row g-4">
+        <!-- Info + líneas -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-info-circle me-2"></i>Información</span>
+                    <span class="badge bg-@EstadoColor(_compra.Estado) fs-6">@EstadoLabel(_compra.Estado)</span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Número</small>
+                            <strong>@_compra.NumeroCompra</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Proveedor</small>
+                            <strong>@_compra.ProveedorNombre</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Fecha</small>
+                            <strong>@_compra.Fecha.ToString("dd/MM/yyyy HH:mm")</strong>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_compra.Observaciones))
+                        {
+                            <div class="col-12">
+                                <small class="text-muted d-block">Observaciones</small>
+                                <span>@_compra.Observaciones</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="fas fa-list me-2"></i>Productos recibidos</div>
+                <div class="card-body p-0">
+                    <table class="table table-borderless align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-center" style="width:80px">Cant.</th>
+                                <th class="text-end" style="width:120px">Costo unit.</th>
+                                <th class="text-end" style="width:120px">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in _compra.Detalles)
+                            {
+                                <tr>
+                                    <td>@d.ProductoNombre</td>
+                                    <td class="text-center">@d.Cantidad</td>
+                                    <td class="text-end">@d.CostoUnitario.ToString("N2") €</td>
+                                    <td class="text-end fw-semibold">@d.Subtotal.ToString("N2") €</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resumen -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm position-sticky" style="top:20px">
+                <div class="card-header"><i class="fas fa-calculator me-2"></i>Resumen</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Líneas</span>
+                        <span>@_compra.Detalles.Count</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Unidades</span>
+                        <span>@_compra.Detalles.Sum(d => d.Cantidad)</span>
+                    </div>
+                    <hr />
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-bold fs-5">TOTAL</span>
+                        <span class="fw-bold fs-5 text-primary">@_compra.Total.ToString("N2") €</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<PdfViewerModal PdfUrl="@_pdfUrl" Titulo="@_pdfTitulo" OnClose='() => _pdfUrl = string.Empty' />
+
+@code {
+    [Parameter] public int Id { get; set; }
+    CompraDto?  _compra;
+    EmpresaDto? _empresa;
+    bool _cargando = true;
+    bool _enviandoEmail;
+    string _apiBase        = string.Empty;
+    string _emailProveedor = string.Empty;
+    string _pdfUrl         = string.Empty;
+    string _pdfTitulo      = string.Empty;
+
+    void VerPdf(string url, string titulo) { _pdfUrl = url; _pdfTitulo = titulo; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _apiBase = (Config["ApiBaseUrl"] ?? "http://localhost:5000").TrimEnd('/');
+        _compra  = await Svc.GetByIdAsync(Id);
+        if (_compra == null) { Nav.NavigateTo("/compras"); return; }
+        _empresa = await EmpresaSvc.GetAsync();
+
+        // Email/teléfono del proveedor (desde el DTO enriquecido)
+        _emailProveedor = _compra.ProveedorEmail ?? string.Empty;
+        // fallback: buscar en listado si el campo viene vacío
+        if (string.IsNullOrEmpty(_emailProveedor))
+        {
+            var proveedores = await Svc.GetProveedoresAsync(soloActivos: false);
+            var prov = proveedores.FirstOrDefault(p => p.Id == _compra.ProveedorId);
+            _emailProveedor = prov?.Email ?? string.Empty;
+        }
+
+        _cargando = false;
+    }
+
+    string WaMsgProveedor()
+    {
+        if (_compra == null) return string.Empty;
+        return $"Hola {_compra.ProveedorNombre}, le confirmamos la orden de compra {_compra.NumeroCompra} " +
+               $"por un total de {_compra.Total:N2}€. " +
+               $"Por favor confírmenos la recepción. Gracias, {_empresa?.Nombre ?? "CellShop"}.";
+    }
+
+    async Task EnviarPdf(string dest)
+    {
+        _enviandoEmail = true;
+        var (ok, msg) = await Svc.EnviarPdfAsync(Id, dest);
+        _enviandoEmail = false;
+        if (ok) Notif.Success(msg);
+        else Notif.Error(msg);
+    }
+
+    static string EstadoLabel(string e) => e switch
+    {
+        "pendiente" => "Pendiente",
+        "recibida"  => "Recibida",
+        "parcial"   => "Parcial",
+        "cancelada" => "Cancelada",
+        _           => e
+    };
+
+    static string EstadoColor(string e) => e switch
+    {
+        "pendiente" => "warning",
+        "recibida"  => "success",
+        "parcial"   => "info",
+        "cancelada" => "danger",
+        _           => "secondary"
+    };
+}

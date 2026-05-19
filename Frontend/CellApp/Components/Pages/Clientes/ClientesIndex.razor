@@ -1,0 +1,184 @@
+@page "/clientes"
+@rendermode InteractiveServer
+@inject ClienteApiService Svc
+@inject NavigationManager Nav
+@inject NotificacionService Notif
+@inject IJSRuntime JS
+
+<PageTitle>Clientes — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-users me-2 text-primary"></i>Clientes</h4>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-success btn-sm" @onclick="ExportarCsv" disabled="@_exportando">
+            @if (_exportando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="fas fa-file-csv me-1"></i>Exportar CSV
+        </button>
+        <a href="/clientes/nuevo" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Nuevo cliente
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input class="form-control" placeholder="Buscar por nombre, email o NIF..."
+                           @bind="_busqueda" @bind:event="oninput" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" @bind="_filtroActivo" @bind:after="CargarAsync">
+                    <option value="true">Solo activos</option>
+                    <option value="false">Todos</option>
+                </select>
+            </div>
+            <div class="col-md-3 text-end">
+                <small class="text-muted">@ClientesFiltrados.Count() clientes</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Nombre</th><th>Email</th><th>Teléfono</th>
+                        <th>NIF</th><th>Ciudad</th><th>Estado</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in ClientesFiltrados)
+                    {
+                        <tr style="cursor:pointer" @onclick='() => Nav.NavigateTo($"/clientes/{c.Id}")'>
+                            <td>
+                                <div class="fw-semibold">@c.NombreCompleto</div>
+                                @if (!string.IsNullOrEmpty(c.Observaciones))
+                                {
+                                    <small class="text-muted text-truncate d-block" style="max-width:200px">@c.Observaciones</small>
+                                }
+                            </td>
+                            <td><span @onclick:stopPropagation><a href="mailto:@c.Email">@c.Email</a></span></td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(c.Telefono))
+                                {
+                                    <span @onclick:stopPropagation>
+                                        <a href="tel:@c.Telefono">@c.Telefono</a>
+                                    </span>
+                                }
+                                else { <span>—</span> }
+                            </td>
+                            <td>@(c.Nif ?? "—")</td>
+                            <td>@(c.Ciudad ?? "—")</td>
+                            <td>
+                                <span class="badge @(c.Activo ? "bg-success" : "bg-secondary")">
+                                    @(c.Activo ? "Activo" : "Inactivo")
+                                </span>
+                            </td>
+                            <td @onclick:stopPropagation>
+                                <div class="d-flex gap-1 justify-content-end">
+                                    <a href="/clientes/@c.Id" class="btn btn-sm btn-primary" title="Ver ficha">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="/reparaciones/nueva?clienteId=@c.Id" class="btn btn-sm btn-outline-warning" title="Nueva reparación">
+                                        <i class="fas fa-tools"></i>
+                                    </a>
+                                    <a href="/ventas/nueva?clienteId=@c.Id" class="btn btn-sm btn-outline-success" title="Nueva venta">
+                                        <i class="fas fa-cart-plus"></i>
+                                    </a>
+                                    @if (c.Activo)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" title="Desactivar"
+                                                @onclick="() => ConfirmarEliminar(c)">
+                                            <i class="fas fa-ban"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (!ClientesFiltrados.Any())
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">No se encontraron clientes.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<ConfirmDialog @ref="_dialog"
+               Titulo="Desactivar cliente"
+               Mensaje="@_dialogMensaje"
+               OnConfirm="EliminarConfirmado" />
+
+@code {
+    List<ClienteDto> _clientes = new();
+    bool _cargando = true;
+    bool _exportando;
+    string _busqueda = string.Empty;
+    string _filtroActivo = "true";
+    ClienteDto? _clienteAEliminar;
+    string _dialogMensaje = string.Empty;
+    ConfirmDialog? _dialog;
+
+    IEnumerable<ClienteDto> ClientesFiltrados => _clientes.Where(c =>
+        string.IsNullOrEmpty(_busqueda) ||
+        c.NombreCompleto.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+        (c.Email?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false) ||
+        (c.Nif?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    async Task CargarAsync()
+    {
+        _cargando = true;
+        _clientes = await Svc.GetAllAsync(_filtroActivo == "true");
+        _cargando = false;
+    }
+
+    void ConfirmarEliminar(ClienteDto c)
+    {
+        _clienteAEliminar = c;
+        _dialogMensaje = $"¿Desactivar al cliente '{c.NombreCompleto}'?";
+        _dialog?.Show();
+    }
+
+    async Task EliminarConfirmado()
+    {
+        if (_clienteAEliminar == null) return;
+        var (ok, msg) = await Svc.DeleteAsync(_clienteAEliminar.Id);
+        if (ok) { Notif.Success(msg); await CargarAsync(); }
+        else Notif.Error(msg);
+    }
+
+    async Task ExportarCsv()
+    {
+        _exportando = true;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Nombre;Apellidos;Email;Teléfono;NIF;Ciudad;C.P.;Activo;Alta");
+        foreach (var c in ClientesFiltrados)
+            sb.AppendLine(string.Join(";",
+                c.Nombre.Replace(";", " "),
+                c.Apellidos?.Replace(";", " ") ?? "",
+                c.Email ?? "",
+                c.Telefono ?? "",
+                c.Nif ?? "",
+                c.Ciudad ?? "",
+                c.CodigoPostal ?? "",
+                c.Activo ? "Sí" : "No",
+                c.FechaCreacion.ToString("dd/MM/yyyy")));
+        await JS.InvokeVoidAsync("descargarCsv", sb.ToString(), $"clientes_{DateTime.Today:yyyyMMdd}.csv");
+        _exportando = false;
+    }
+}

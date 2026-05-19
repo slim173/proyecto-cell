@@ -1,0 +1,40 @@
+@inject NotificacionService Notif
+@implements IDisposable
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9999;">
+    @foreach (var toast in Notif.Toasts)
+    {
+        <div class="toast show align-items-center text-white border-0 mb-2 @GetBgClass(toast.Tipo)"
+             role="alert">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center gap-2">
+                    <i class="@GetIcon(toast.Tipo)"></i>
+                    <span>@toast.Mensaje</span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                        @onclick="() => Notif.Remove(toast)"></button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized() => Notif.OnChange += StateHasChanged;
+    public void Dispose() => Notif.OnChange -= StateHasChanged;
+
+    static string GetBgClass(string tipo) => tipo switch
+    {
+        "success" => "bg-success",
+        "error"   => "bg-danger",
+        "warning" => "bg-warning text-dark",
+        _         => "bg-info"
+    };
+
+    static string GetIcon(string tipo) => tipo switch
+    {
+        "success" => "fas fa-check-circle",
+        "error"   => "fas fa-times-circle",
+        "warning" => "fas fa-exclamation-triangle",
+        _         => "fas fa-info-circle"
+    };
+}

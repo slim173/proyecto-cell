@@ -1,0 +1,552 @@
+@page "/facturas"
+@rendermode InteractiveServer
+@inject FacturaApiService Svc
+@inject NotificacionService Notif
+@inject IConfiguration Config
+@inject HttpClient Http
+@inject IJSRuntime JS
+@using CellApp.Components.Shared
+
+<PageTitle>Facturas — CellShop</PageTitle>
+
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h4><i class="fas fa-file-invoice me-2 text-primary"></i>Facturas emitidas</h4>
+    <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-success btn-sm" @onclick="ExportarCsv" disabled="@_exportando">
+            @if (_exportando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+            <i class="fas fa-file-csv me-1"></i>Exportar CSV
+        </button>
+        <a href="/facturas/nueva" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus me-1"></i>Nueva factura
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <!-- Búsqueda -->
+            <div class="col-md-3">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input class="form-control" placeholder="N°, cliente, NIF..."
+                           @bind="_busqueda" @bind:event="oninput"
+                           @onkeyup="ResetPagina" />
+                </div>
+            </div>
+            <!-- Rango de fechas -->
+            <div class="col-auto">
+                <div class="d-flex align-items-center gap-1">
+                    <input class="form-control form-control-sm" type="date" style="width:138px"
+                           value="@_fechaDesde?.ToString("yyyy-MM-dd")"
+                           @onchange="e => { _fechaDesde = ParseFecha(e.Value?.ToString()); ResetPagina(); }" />
+                    <span class="text-muted">—</span>
+                    <input class="form-control form-control-sm" type="date" style="width:138px"
+                           value="@_fechaHasta?.ToString("yyyy-MM-dd")"
+                           @onchange="e => { _fechaHasta = ParseFecha(e.Value?.ToString()); ResetPagina(); }" />
+                </div>
+            </div>
+            <!-- Períodos rápidos -->
+            <div class="col-auto">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn @(_periodo=="mes"?"btn-primary":"btn-outline-secondary")"
+                            @onclick='() => SetPeriodo("mes")'>Mes</button>
+                    <button class="btn @(_periodo=="trimestre"?"btn-primary":"btn-outline-secondary")"
+                            @onclick='() => SetPeriodo("trimestre")'>Trim.</button>
+                    <button class="btn @(_periodo=="anio"?"btn-primary":"btn-outline-secondary")"
+                            @onclick='() => SetPeriodo("anio")'>Año</button>
+                    <button class="btn @(_periodo=="todo"?"btn-primary":"btn-outline-secondary")"
+                            @onclick='() => SetPeriodo("todo")'>Todo</button>
+                </div>
+            </div>
+            <!-- Origen -->
+            <div class="col-auto">
+                <select class="form-select form-select-sm" style="width:auto"
+                        @bind="_filtroOrigen" @bind:after="ResetPagina">
+                    <option value="todos">Todos los orígenes</option>
+                    <option value="venta">Solo ventas</option>
+                    <option value="reparacion">Solo reparaciones</option>
+                </select>
+            </div>
+            <!-- Mostrar anuladas -->
+            <div class="col-auto">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="chkAnuladas"
+                           @bind="_mostrarAnuladas" @bind:after="ResetPagina" />
+                    <label class="form-check-label small" for="chkAnuladas">Anuladas</label>
+                </div>
+            </div>
+            <!-- Formato PDF -->
+            <div class="col-auto ms-auto">
+                <div class="d-flex align-items-center gap-2 small">
+                    <span class="text-muted fw-semibold"><i class="fas fa-ruler me-1"></i>PDF:</span>
+                    @foreach (var (fmt, lbl) in new[] { ("a4", "A4"), ("ticket_80mm", "80 mm"), ("ticket_58mm", "58 mm") })
+                    {
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="radio" name="fmtFact" id="fmt_@fmt"
+                                   checked="@(_formato == fmt)" @onchange="() => _formato = fmt" />
+                            <label class="form-check-label" for="fmt_@fmt">@lbl</label>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    var filtradas  = FiltrarYOrdenar();
+    var validas    = filtradas.Where(f => !f.Anulada).ToList();
+    var anuladas   = filtradas.Where(f => f.Anulada).ToList();
+    var paginadas  = Paginar(filtradas);
+    int totalPags  = Math.Max(1, (int)Math.Ceiling(filtradas.Count / (double)_porPagina));
+
+    <!-- Tarjetas resumen -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3 fact-kpi" style="border-top:3px solid #6366f1">
+                <div class="fw-800 mb-1 fact-kpi-val" style="color:#818cf8">
+                    @validas.Sum(f => f.Total).ToString("N2") €
+                </div>
+                <small class="text-muted">Total facturado</small>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3 fact-kpi" style="border-top:3px solid #f59e0b">
+                <div class="fw-800 mb-1 fact-kpi-val" style="color:#fbbf24">
+                    @validas.Sum(f => f.ImporteIva).ToString("N2") €
+                </div>
+                <small class="text-muted">Total IVA</small>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3 fact-kpi" style="border-top:3px solid #10b981">
+                <div class="fw-800 mb-1 fact-kpi-val" style="color:#34d399">
+                    @validas.Count
+                </div>
+                <small class="text-muted">Facturas válidas</small>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3 fact-kpi" style="border-top:3px solid #ef4444">
+                <div class="fw-800 mb-1 fact-kpi-val" style="color:#f87171">
+                    @anuladas.Count
+                </div>
+                <small class="text-muted">Anuladas</small>
+            </div>
+        </div>
+    </div>
+
+    @if (!filtradas.Any())
+    {
+        <div class="text-center text-muted py-5">
+            <i class="fas fa-file-invoice fa-3x mb-3 opacity-25"></i>
+            <p>No hay facturas con los filtros aplicados.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="col-sort" @onclick='() => OrdenarPor("numero")'>
+                                N° Factura @SortIcon("numero")
+                            </th>
+                            <th class="col-sort" @onclick='() => OrdenarPor("cliente")'>
+                                Cliente @SortIcon("cliente")
+                            </th>
+                            <th>NIF</th>
+                            <th class="col-sort" @onclick='() => OrdenarPor("fecha")'>
+                                Fecha @SortIcon("fecha")
+                            </th>
+                            <th>Origen</th>
+                            <th class="text-end col-sort" @onclick='() => OrdenarPor("base")'>
+                                Base imp. @SortIcon("base")
+                            </th>
+                            <th class="text-end">IVA</th>
+                            <th class="text-end col-sort" @onclick='() => OrdenarPor("total")'>
+                                Total @SortIcon("total")
+                            </th>
+                            <th class="text-center">Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in paginadas)
+                        {
+                            <tr class="@(f.Anulada ? "fila-anulada" : "")">
+                                <td><strong>@f.NumeroFactura</strong></td>
+                                <td>@f.ClienteNombreCompleto</td>
+                                <td><small class="text-muted">@(f.ClienteNif ?? "—")</small></td>
+                                <td><small>@f.FechaEmision.ToString("dd/MM/yyyy")</small></td>
+                                <td>
+                                    @if (f.VentaId.HasValue)
+                                    {
+                                        <a href="/ventas/@f.VentaId" class="badge bg-primary text-decoration-none">
+                                            <i class="fas fa-cash-register me-1"></i>Venta
+                                        </a>
+                                    }
+                                    else if (f.ReparacionId.HasValue)
+                                    {
+                                        <a href="/reparaciones/@f.ReparacionId" class="badge bg-info text-decoration-none">
+                                            <i class="fas fa-tools me-1"></i>Reparación
+                                        </a>
+                                    }
+                                </td>
+                                <td class="text-end">@f.BaseImponible.ToString("N2") €</td>
+                                <td class="text-end text-muted">@f.ImporteIva.ToString("N2") €</td>
+                                <td class="text-end fw-semibold">@f.Total.ToString("N2") €</td>
+                                <td class="text-center">
+                                    @if (f.Anulada)
+                                    {
+                                        <span class="badge bg-danger">ANULADA</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">Válida</span>
+                                    }
+                                </td>
+                                <td class="text-end" style="white-space:nowrap">
+                                    @if (!f.Anulada)
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary me-1" title="Ver PDF"
+                                                @onclick='() => VerPdf(FacturaPdfUrl(f.Id), "Factura — " + f.NumeroFactura)'>
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-primary me-1" title="Descargar PDF"
+                                                @onclick="() => DescargarPdf(f)"
+                                                disabled="@(_descargandoId == f.Id)">
+                                            @if (_descargandoId == f.Id)
+                                            { <span class="spinner-border spinner-border-sm"></span> }
+                                            else
+                                            { <i class="fas fa-download"></i> }
+                                        </button>
+                                        <EnviarEmailBtn EmailPorDefecto="@(f.ClienteEmail ?? string.Empty)"
+                                                        Enviando="@(_enviandoFacturaId == f.Id)"
+                                                        OnEnviar="@(dest => EnviarFacturaEmail(f.Id, dest))" />
+                                        <button class="btn btn-sm btn-outline-danger ms-1" title="Anular"
+                                                @onclick="() => IniciarAnulacion(f)">
+                                            <i class="fas fa-ban"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light fw-semibold">
+                        <tr>
+                            <td colspan="5" class="text-end text-muted small">Totales filtrados:</td>
+                            <td class="text-end">@validas.Sum(f => f.BaseImponible).ToString("N2") €</td>
+                            <td class="text-end">@validas.Sum(f => f.ImporteIva).ToString("N2") €</td>
+                            <td class="text-end text-primary">@validas.Sum(f => f.Total).ToString("N2") €</td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- Paginación -->
+        <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2 small text-muted">
+                <span>@filtradas.Count factura(s)</span>
+                <select class="form-select form-select-sm" style="width:auto"
+                        @bind="_porPagina" @bind:after="ResetPagina">
+                    <option value="25">25 / pág.</option>
+                    <option value="50">50 / pág.</option>
+                    <option value="100">100 / pág.</option>
+                </select>
+            </div>
+            @if (totalPags > 1)
+            {
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(_pagina == 1 ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => _pagina--">‹</button>
+                        </li>
+                        @for (int i = Math.Max(1, _pagina - 2); i <= Math.Min(totalPags, _pagina + 2); i++)
+                        {
+                            var pg = i;
+                            <li class="page-item @(pg == _pagina ? "active" : "")">
+                                <button class="page-link" @onclick="() => _pagina = pg">@pg</button>
+                            </li>
+                        }
+                        <li class="page-item @(_pagina >= totalPags ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => _pagina++">›</button>
+                        </li>
+                    </ul>
+                </nav>
+            }
+        </div>
+    }
+}
+
+<PdfViewerModal PdfUrl="@_pdfUrl" Titulo="@_pdfTitulo" OnClose='() => _pdfUrl = string.Empty' />
+
+<!-- Modal anulación -->
+@if (_facturaAnular != null)
+{
+    <div class="modal fade show d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-ban me-2 text-danger"></i>Anular factura</h5>
+                    <button class="btn-close" @onclick="CancelarAnulacion"></button>
+                </div>
+                <div class="modal-body">
+                    <p>¿Confirmas la anulación de <strong>@_facturaAnular.NumeroFactura</strong>?</p>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo <span class="text-danger">*</span></label>
+                        <textarea class="form-control" rows="3" @bind="_motivoAnulacion"
+                                  placeholder="Describe el motivo de la anulación..."></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_errorAnulacion))
+                    {
+                        <div class="alert alert-danger py-2 small">@_errorAnulacion</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelarAnulacion">Cancelar</button>
+                    <button class="btn btn-danger" @onclick="ConfirmarAnulacion" disabled="@_anulando">
+                        @if (_anulando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="fas fa-ban me-1"></i>Anular factura
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .col-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+    .col-sort:hover { background-color: rgba(255,255,255,.04); }
+    .fact-kpi { transition: box-shadow .17s ease; }
+    .fact-kpi:hover { box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+    .fact-kpi-val { font-size: 1.2rem; letter-spacing: -.02em; }
+    .fila-anulada { background: rgba(248,113,113,.08) !important; opacity: .8; }
+    .fila-anulada td { color: var(--text-muted) !important; }
+</style>
+
+@code {
+    List<FacturaDto> _facturas = new();
+    bool _cargando = true;
+    string _apiBase = string.Empty;
+
+    // Filtros
+    string _busqueda       = string.Empty;
+    bool   _mostrarAnuladas;
+    string _filtroOrigen   = "todos";
+    string _periodo        = "mes";
+    DateTime? _fechaDesde;
+    DateTime? _fechaHasta;
+
+    // PDF
+    string _formato   = "a4";
+    string _pdfUrl    = string.Empty;
+    string _pdfTitulo = string.Empty;
+    void VerPdf(string url, string titulo) { _pdfUrl = url; _pdfTitulo = titulo; }
+    string FacturaPdfUrl(int id) =>
+        _apiBase + $"/api/facturas/{id}/pdf" + (_formato == "a4" ? "" : $"?formato={_formato}");
+
+    // Ordenación
+    string _columnaOrden = "fecha";
+    bool   _ordenAsc     = false;
+
+    // Paginación
+    int _pagina    = 1;
+    int _porPagina = 25;
+    void ResetPagina() => _pagina = 1;
+
+    // Descarga / envío
+    bool _exportando;
+    int  _descargandoId;
+    int  _enviandoFacturaId;
+
+    // Anulación
+    FacturaDto? _facturaAnular;
+    string _motivoAnulacion = string.Empty;
+    string _errorAnulacion  = string.Empty;
+    bool   _anulando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _apiBase = Config["ApiBaseUrl"] ?? "http://localhost:51013";
+        SetPeriodo("mes");
+        _facturas = await Svc.GetAllAsync();
+        _cargando = false;
+    }
+
+    // ── Filtrado y ordenación ────────────────────────────────────────
+
+    List<FacturaDto> FiltrarYOrdenar()
+    {
+        var q = _facturas.AsEnumerable();
+
+        if (!_mostrarAnuladas)
+            q = q.Where(f => !f.Anulada);
+
+        if (!string.IsNullOrWhiteSpace(_busqueda))
+        {
+            var b = _busqueda.Trim();
+            q = q.Where(f =>
+                f.NumeroFactura.Contains(b, StringComparison.OrdinalIgnoreCase) ||
+                (f.ClienteNombreCompleto ?? "").Contains(b, StringComparison.OrdinalIgnoreCase) ||
+                (f.ClienteNif ?? "").Contains(b, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (_fechaDesde.HasValue)
+            q = q.Where(f => f.FechaEmision.Date >= _fechaDesde.Value.Date);
+        if (_fechaHasta.HasValue)
+            q = q.Where(f => f.FechaEmision.Date <= _fechaHasta.Value.Date);
+
+        if (_filtroOrigen == "venta")      q = q.Where(f => f.VentaId.HasValue);
+        if (_filtroOrigen == "reparacion") q = q.Where(f => f.ReparacionId.HasValue);
+
+        q = (_columnaOrden, _ordenAsc) switch
+        {
+            ("numero",  true)  => q.OrderBy(f => f.NumeroFactura),
+            ("numero",  false) => q.OrderByDescending(f => f.NumeroFactura),
+            ("cliente", true)  => q.OrderBy(f => f.ClienteNombreCompleto),
+            ("cliente", false) => q.OrderByDescending(f => f.ClienteNombreCompleto),
+            ("base",    true)  => q.OrderBy(f => f.BaseImponible),
+            ("base",    false) => q.OrderByDescending(f => f.BaseImponible),
+            ("total",   true)  => q.OrderBy(f => f.Total),
+            ("total",   false) => q.OrderByDescending(f => f.Total),
+            ("fecha",   true)  => q.OrderBy(f => f.FechaEmision),
+            _                  => q.OrderByDescending(f => f.FechaEmision),
+        };
+
+        return q.ToList();
+    }
+
+    List<FacturaDto> Paginar(List<FacturaDto> lista) =>
+        lista.Skip((_pagina - 1) * _porPagina).Take(_porPagina).ToList();
+
+    void OrdenarPor(string columna)
+    {
+        _ordenAsc = (_columnaOrden == columna) ? !_ordenAsc : false;
+        _columnaOrden = columna;
+        _pagina = 1;
+    }
+
+    MarkupString SortIcon(string col) => (MarkupString)(
+        _columnaOrden != col
+            ? "<i class='fas fa-sort ms-1' style='opacity:.2'></i>"
+            : _ordenAsc
+                ? "<i class='fas fa-sort-up ms-1 text-primary'></i>"
+                : "<i class='fas fa-sort-down ms-1 text-primary'></i>");
+
+    // ── Períodos rápidos ─────────────────────────────────────────────
+
+    void SetPeriodo(string p)
+    {
+        _periodo = p;
+        var hoy = DateTime.Today;
+        (_fechaDesde, _fechaHasta) = p switch
+        {
+            "mes"       => (new DateTime(hoy.Year, hoy.Month, 1), (DateTime?)null),
+            "trimestre" => (new DateTime(hoy.Year, ((hoy.Month - 1) / 3 * 3) + 1, 1), (DateTime?)null),
+            "anio"      => (new DateTime(hoy.Year, 1, 1), (DateTime?)null),
+            _           => ((DateTime?)null, (DateTime?)null),
+        };
+        _pagina = 1;
+    }
+
+    static DateTime? ParseFecha(string? s) =>
+        string.IsNullOrEmpty(s) ? null : DateTime.TryParse(s, out var d) ? d : null;
+
+    // ── Exportar CSV ─────────────────────────────────────────────────
+
+    async Task ExportarCsv()
+    {
+        _exportando = true;
+        try
+        {
+            var lista = FiltrarYOrdenar();
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("N° Factura;Cliente;NIF;Fecha;Origen;Base imponible;IVA;Total;Estado");
+            foreach (var f in lista)
+            {
+                var origen = f.VentaId.HasValue ? "Venta" :
+                             f.ReparacionId.HasValue ? "Reparación" : "Manual";
+                sb.AppendLine(string.Join(";",
+                    f.NumeroFactura,
+                    f.ClienteNombreCompleto,
+                    f.ClienteNif ?? "",
+                    f.FechaEmision.ToString("dd/MM/yyyy"),
+                    origen,
+                    f.BaseImponible.ToString("N2"),
+                    f.ImporteIva.ToString("N2"),
+                    f.Total.ToString("N2"),
+                    f.Anulada ? "Anulada" : "Válida"));
+            }
+            await JS.InvokeVoidAsync("descargarCsv", sb.ToString(),
+                $"facturas_{DateTime.Today:yyyyMMdd}.csv");
+        }
+        finally { _exportando = false; }
+    }
+
+    // ── Descarga directa PDF ─────────────────────────────────────────
+
+    async Task DescargarPdf(FacturaDto f)
+    {
+        _descargandoId = f.Id;
+        try
+        {
+            var url = $"api/facturas/{f.Id}/pdf" + (_formato == "a4" ? "" : $"?formato={_formato}");
+            var bytes = await Http.GetByteArrayAsync(url);
+            await JS.InvokeVoidAsync("descargarBlob",
+                Convert.ToBase64String(bytes),
+                $"factura_{f.NumeroFactura}.pdf",
+                "application/pdf");
+        }
+        catch { Notif.Error("Error al descargar el PDF."); }
+        finally { _descargandoId = 0; }
+    }
+
+    // ── Email ────────────────────────────────────────────────────────
+
+    async Task EnviarFacturaEmail(int id, string dest)
+    {
+        _enviandoFacturaId = id;
+        var (ok, msg) = await Svc.EnviarEmailAsync(id, dest);
+        _enviandoFacturaId = 0;
+        if (ok) Notif.Success(msg); else Notif.Error(msg);
+    }
+
+    // ── Anulación ────────────────────────────────────────────────────
+
+    void IniciarAnulacion(FacturaDto f)
+    {
+        _facturaAnular   = f;
+        _motivoAnulacion = string.Empty;
+        _errorAnulacion  = string.Empty;
+    }
+
+    void CancelarAnulacion() => _facturaAnular = null;
+
+    async Task ConfirmarAnulacion()
+    {
+        if (string.IsNullOrWhiteSpace(_motivoAnulacion))
+        {
+            _errorAnulacion = "El motivo es obligatorio.";
+            return;
+        }
+        _anulando = true;
+        var (ok, msg) = await Svc.AnularAsync(_facturaAnular!.Id, _motivoAnulacion);
+        _anulando = false;
+        if (ok)
+        {
+            Notif.Success("Factura anulada correctamente.");
+            _facturaAnular = null;
+            _facturas = await Svc.GetAllAsync();
+        }
+        else _errorAnulacion = msg;
+    }
+}

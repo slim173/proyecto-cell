@@ -1,0 +1,38 @@
+@if (Visible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-question-circle text-warning me-2"></i>@Titulo
+                    </h5>
+                </div>
+                <div class="modal-body">@Mensaje</div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Cancelar">
+                        <i class="fas fa-times me-1"></i>Cancelar
+                    </button>
+                    <button class="btn btn-danger" @onclick="Confirmar">
+                        <i class="fas fa-check me-1"></i>Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Titulo  { get; set; } = "¿Confirmar acción?";
+    [Parameter] public string Mensaje { get; set; } = "¿Está seguro de que desea continuar?";
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel  { get; set; }
+
+    public bool Visible { get; private set; }
+
+    public void Show() => Visible = true;
+    public void Hide() => Visible = false;
+
+    async Task Confirmar() { Visible = false; await OnConfirm.InvokeAsync(); }
+    async Task Cancelar()  { Visible = false; await OnCancel.InvokeAsync(); }
+}

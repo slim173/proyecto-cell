@@ -1,0 +1,211 @@
+@page "/seguimiento"
+@page "/seguimiento/{NumeroOrden}"
+@using System.Net.Http.Json
+@using CellApp.Models
+@inject HttpClient Http
+@inject NavigationManager Nav
+@layout CellApp.Components.Layout.BlankLayout
+
+<PageTitle>Seguimiento de Reparación — CellShop</PageTitle>
+
+<div class="seguimiento-bg min-vh-100 d-flex align-items-center justify-content-center py-4">
+    <div class="container" style="max-width:600px">
+
+        <div class="text-center mb-4">
+            <div class="display-6 fw-bold text-primary">
+                <i class="fas fa-tools me-2"></i>CellShop
+            </div>
+            <p class="text-muted">Seguimiento de reparación</p>
+        </div>
+
+        @if (!_buscado)
+        {
+            <div class="card shadow-sm border-0 rounded-4 p-4">
+                <h5 class="fw-bold mb-3">Consulta tu reparación</h5>
+                <div class="input-group input-group-lg">
+                    <input @bind="_numero" @bind:event="oninput" @onkeydown="OnKeyDown"
+                           class="form-control rounded-start-4"
+                           placeholder="Ej: R-20260001" maxlength="20" />
+                    <button class="btn btn-primary rounded-end-4 px-4"
+                            @onclick="Buscar" disabled="@_cargando">
+                        @if (_cargando) { <span class="spinner-border spinner-border-sm"></span> }
+                        else { <i class="fas fa-search"></i> }
+                    </button>
+                </div>
+                @if (_error != null)
+                {
+                    <div class="alert alert-danger mt-3 mb-0 rounded-3">
+                        <i class="fas fa-exclamation-circle me-1"></i>@_error
+                    </div>
+                }
+            </div>
+        }
+        else if (_data != null)
+        {
+            <div class="card shadow-sm border-0 rounded-4 p-4 mb-3">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="fw-bold mb-0">@_data.NumeroOrden</h5>
+                        <small class="text-muted">@_data.Dispositivo</small>
+                    </div>
+                    <span class="badge rounded-pill fs-6 @EstadoBadge(_data.Estado)">
+                        @_data.EstadoLabel
+                    </span>
+                </div>
+
+                @if (_data.Estado != "no_reparable")
+                {
+                    <!-- Barra de progreso -->
+                    <div class="progress mb-4" style="height:8px">
+                        <div class="progress-bar bg-primary"
+                             style="width:@((_data.PasoActual + 1) * 20)%"></div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mb-4">
+                        @foreach (var (paso, i) in _pasos.Select((p,i)=>(p,i)))
+                        {
+                            <div class="text-center" style="flex:1">
+                                <div class="rounded-circle border mx-auto mb-1 d-flex align-items-center justify-content-center
+                                    @(i <= _data.PasoActual ? "bg-primary text-white border-primary" : "bg-light text-muted")"
+                                     style="width:32px;height:32px;font-size:12px">
+                                    @if (i < _data.PasoActual) { <i class="fas fa-check"></i> }
+                                    else { <span>@(i+1)</span> }
+                                </div>
+                                <div class="text-muted" style="font-size:10px">@PasoLabel(paso)</div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-warning rounded-3">
+                        <i class="fas fa-times-circle me-1"></i>
+                        Lo sentimos, este dispositivo no ha podido ser reparado.
+                    </div>
+                }
+
+                <hr class="my-3"/>
+
+                <div class="row g-2 small text-muted">
+                    <div class="col-6">
+                        <i class="fas fa-calendar me-1"></i>
+                        Recibido: <strong>@_data.FechaRecepcion.ToString("dd/MM/yyyy")</strong>
+                    </div>
+                    @if (_data.FechaEntrega.HasValue)
+                    {
+                        <div class="col-6">
+                            <i class="fas fa-clock me-1"></i>
+                            Entrega est.: <strong>@_data.FechaEntrega.Value.ToString("dd/MM/yyyy")</strong>
+                        </div>
+                    }
+                    @if (_data.Presupuesto.HasValue)
+                    {
+                        <div class="col-6">
+                            <i class="fas fa-euro-sign me-1"></i>
+                            Presupuesto: <strong>@_data.Presupuesto.Value.ToString("F2") €</strong>
+                        </div>
+                    }
+                    @if (_data.Total.HasValue)
+                    {
+                        <div class="col-6">
+                            <i class="fas fa-receipt me-1"></i>
+                            Total: <strong class="text-success">@_data.Total.Value.ToString("F2") €</strong>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_data.Solucion))
+                    {
+                        <div class="col-12 mt-2">
+                            <i class="fas fa-wrench me-1"></i>
+                            <strong>Solución:</strong> @_data.Solucion
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <button class="btn btn-outline-secondary w-100 rounded-3"
+                    @onclick="() => { _buscado = false; _data = null; _numero = string.Empty; }">
+                <i class="fas fa-search me-1"></i>Consultar otra orden
+            </button>
+        }
+    </div>
+</div>
+
+<style>
+    .seguimiento-bg { background: linear-gradient(135deg, #667eea22 0%, #764ba222 100%); }
+</style>
+
+@code {
+    [Parameter] public string? NumeroOrden { get; set; }
+
+    string _numero = "";
+    bool   _cargando;
+    bool   _buscado;
+    string? _error;
+    SeguimientoData? _data;
+
+    string[] _pasos = { "recibido","diagnosticado","en_reparacion","reparado","entregado" };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrEmpty(NumeroOrden))
+        {
+            _numero = NumeroOrden;
+            await Buscar();
+        }
+    }
+
+    async Task Buscar()
+    {
+        _error = null;
+        var n = _numero.Trim().ToUpper();
+        if (string.IsNullOrEmpty(n)) { _error = "Introduce el número de orden."; return; }
+        _cargando = true;
+        try
+        {
+            var resp = await Http.GetFromJsonAsync<ApiResponse<SeguimientoData>>(
+                $"api/reparaciones/seguimiento/{n}");
+            if (resp?.Data != null) { _data = resp.Data; _buscado = true; }
+            else { _error = "Orden no encontrada. Revisa el número."; }
+        }
+        catch { _error = "No se pudo conectar. Inténtalo de nuevo."; }
+        finally { _cargando = false; }
+    }
+
+    async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Buscar();
+    }
+
+    string EstadoBadge(string e) => e switch {
+        "entregado"     => "bg-success",
+        "reparado"      => "bg-primary",
+        "en_reparacion" => "bg-warning text-dark",
+        "diagnosticado" => "bg-info text-dark",
+        "no_reparable"  => "bg-danger",
+        _               => "bg-secondary"
+    };
+
+    string PasoLabel(string p) => p switch {
+        "recibido"      => "Recibido",
+        "diagnosticado" => "Diagnóstico",
+        "en_reparacion" => "Reparando",
+        "reparado"      => "Listo",
+        "entregado"     => "Entregado",
+        _               => p
+    };
+
+    class SeguimientoData
+    {
+        public string   NumeroOrden      { get; set; } = "";
+        public string   Dispositivo      { get; set; } = "";
+        public string   Estado           { get; set; } = "";
+        public string   EstadoLabel      { get; set; } = "";
+        public int      PasoActual       { get; set; }
+        public DateTime FechaRecepcion   { get; set; }
+        public DateTime? FechaEntrega    { get; set; }
+        public DateTime? FechaEntregaReal { get; set; }
+        public decimal?  Presupuesto     { get; set; }
+        public decimal?  Total           { get; set; }
+        public string?   Solucion        { get; set; }
+    }
+}

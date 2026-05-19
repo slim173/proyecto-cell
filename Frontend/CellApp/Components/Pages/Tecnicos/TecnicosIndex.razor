@@ -1,0 +1,440 @@
+@page "/tecnicos"
+@rendermode InteractiveServer
+@inject ReparacionApiService RepSvc
+@inject NavigationManager Nav
+
+<PageTitle>Técnicos — CellShop</PageTitle>
+
+<style>
+/* ── Tarjetas técnico ─────────────────────────── */
+.tec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(265px, 1fr));
+    gap: 16px;
+}
+
+.tec-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform .17s ease, box-shadow .17s ease, border-color .17s ease;
+    display: flex; flex-direction: column;
+}
+
+.tec-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+
+.tec-card.seleccionado {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(99,102,241,.25), var(--shadow-md);
+}
+
+.tec-top {
+    padding: 22px 20px 16px;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    border-bottom: 1px solid var(--border);
+}
+
+.tec-avatar {
+    width: 68px; height: 68px; border-radius: 50%;
+    font-size: 1.5rem; font-weight: 900; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 12px; flex-shrink: 0;
+}
+
+.tec-nombre { font-weight: 700; font-size: .95rem; color: var(--text); margin-bottom: 12px; }
+
+/* Mini stats row */
+.tec-stats { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+.tec-stat {
+    display: flex; flex-direction: column; align-items: center;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 7px 12px; min-width: 58px;
+}
+
+.tec-stat-val { font-size: 1.1rem; font-weight: 800; line-height: 1; }
+.tec-stat-lbl { font-size: .6rem; font-weight: 700; text-transform: uppercase;
+                letter-spacing: .07em; color: var(--text-muted); margin-top: 3px; }
+
+/* Workload bar */
+.tec-bar-wrap { padding: 12px 16px 0; }
+.tec-bar-label { font-size: .7rem; color: var(--text-muted); margin-bottom: 5px;
+                 display: flex; justify-content: space-between; }
+.tec-bar-bg { height: 5px; background: rgba(255,255,255,.07); border-radius: 3px; }
+.tec-bar-fill { height: 5px; border-radius: 3px; transition: width .35s ease; }
+
+/* Bottom */
+.tec-bottom {
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255,255,255,.02);
+    margin-top: auto;
+}
+
+/* Urgente badge */
+.tec-urgente { animation: tec-pulse 1.8s infinite; }
+@@keyframes tec-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .55; }
+}
+
+/* Tabla de reparaciones del técnico seleccionado */
+.tec-detalle {
+    margin-top: 24px;
+    animation: slideDown .2s ease;
+}
+@@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Sin asignar card accent */
+.tec-card.sin-asignar { border-left: 3px solid #f59e0b; }
+</style>
+
+<!-- Header -->
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h4><i class="fas fa-users-gear me-2 text-primary"></i>Panel de Técnicos</h4>
+    <div class="text-muted small">@_tecnicos.Count técnico@(_tecnicos.Count != 1 ? "s" : "") registrado@(_tecnicos.Count != 1 ? "s" : "")</div>
+</div>
+
+<!-- KPIs superiores -->
+@if (!_cargando)
+{
+    var activas   = _reparaciones.Count(r => r.Estado is "recibido" or "diagnosticado" or "en_reparacion" or "reparado");
+    var urgentes  = _reparaciones.Count(r => r.Prioridad == "urgente" && r.Estado != "entregado");
+    var sinAsig   = _reparaciones.Count(r => string.IsNullOrEmpty(r.TecnicoAsignado) && r.Estado != "entregado");
+
+    <div class="row g-2 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3" style="border-top:3px solid #6366f1">
+                <div class="fw-800 fs-5 mb-1" style="color:#818cf8">@_tecnicos.Count</div>
+                <small class="text-muted">Técnicos</small>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3" style="border-top:3px solid #f59e0b">
+                <div class="fw-800 fs-5 mb-1" style="color:#fbbf24">@activas</div>
+                <small class="text-muted">En curso</small>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3" style="border-top:3px solid #ef4444">
+                <div class="fw-800 fs-5 mb-1 @(urgentes > 0 ? "tec-urgente" : "")" style="color:#f87171">@urgentes</div>
+                <small class="text-muted">Urgentes</small>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center p-3" style="border-top:3px solid #94a3b8">
+                <div class="fw-800 fs-5 mb-1" style="color:#94a3b8">@sinAsig</div>
+                <small class="text-muted">Sin asignar</small>
+            </div>
+        </div>
+    </div>
+}
+
+<LoadingSpinner Cargando="_cargando" />
+
+@if (!_cargando)
+{
+    @if (!_tecnicos.Any())
+    {
+        <div class="text-center text-muted py-5">
+            <i class="fas fa-users-gear fa-3x mb-3 opacity-25 d-block"></i>
+            <p>No hay reparaciones registradas con técnico asignado.</p>
+        </div>
+    }
+    else
+    {
+        <!-- Búsqueda -->
+        <div class="mb-3" style="max-width:340px">
+            <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input class="form-control" placeholder="Buscar técnico…"
+                       @bind="_busqueda" @bind:event="oninput" />
+            </div>
+        </div>
+
+        <!-- Grid de tarjetas -->
+        <div class="tec-grid">
+            @{
+                var maxActivas = _tecnicos.Max(t => t.Activas);
+                maxActivas = maxActivas == 0 ? 1 : maxActivas;
+                var palette = new[] {
+                    ("#6366f1","#4f46e5"), ("#10b981","#059669"), ("#f59e0b","#d97706"),
+                    ("#06b6d4","#0891b2"), ("#8b5cf6","#7c3aed"), ("#ef4444","#dc2626"),
+                    ("#ec4899","#db2777"), ("#14b8a6","#0d9488")
+                };
+                int ci = 0;
+            }
+
+            @foreach (var tec in TecFiltrados)
+            {
+                var (c1, c2) = palette[ci++ % palette.Length];
+                var pct = maxActivas > 0 ? (int)(tec.Activas * 100.0 / maxActivas) : 0;
+                var esSinAsignar = tec.Nombre == "Sin asignar";
+
+                <div class="tec-card @(esSinAsignar ? "sin-asignar" : "") @(_tecSeleccionado?.Nombre == tec.Nombre ? "seleccionado" : "")"
+                     @onclick="() => SeleccionarTecnico(tec)">
+
+                    <div class="tec-top">
+                        <div class="tec-avatar"
+                             style="background:linear-gradient(135deg,@c1,@c2);box-shadow:0 6px 20px @(c1)55">
+                            @Iniciales(tec.Nombre)
+                        </div>
+                        <div class="tec-nombre">@tec.Nombre</div>
+
+                        <div class="tec-stats">
+                            <div class="tec-stat">
+                                <span class="tec-stat-val" style="color:#fbbf24">@tec.Activas</span>
+                                <span class="tec-stat-lbl">Activas</span>
+                            </div>
+                            <div class="tec-stat">
+                                <span class="tec-stat-val" style="color:#f87171">@tec.Urgentes</span>
+                                <span class="tec-stat-lbl">Urgentes</span>
+                            </div>
+                            <div class="tec-stat">
+                                <span class="tec-stat-val" style="color:#34d399">@tec.Completadas</span>
+                                <span class="tec-stat-lbl">Listas</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Barra de carga de trabajo -->
+                    @if (!esSinAsignar)
+                    {
+                        <div class="tec-bar-wrap">
+                            <div class="tec-bar-label">
+                                <span>Carga de trabajo</span>
+                                <span>@tec.Activas activa@(tec.Activas != 1 ? "s" : "")</span>
+                            </div>
+                            <div class="tec-bar-bg">
+                                <div class="tec-bar-fill"
+                                     style="width:@pct%;background:linear-gradient(90deg,@c1,@c2)"></div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="tec-bottom">
+                        <small class="text-muted">
+                            @if (tec.EnCurso > 0)
+                            {
+                                <span class="badge" style="background:rgba(96,165,250,.15);color:#60a5fa">
+                                    @tec.EnCurso en reparación
+                                </span>
+                            }
+                            else if (tec.Activas == 0)
+                            {
+                                <span class="badge" style="background:rgba(52,211,153,.12);color:#34d399">Libre</span>
+                            }
+                        </small>
+                        <small style="color:@c1;font-weight:700">
+                            <i class="fas fa-chevron-@(_tecSeleccionado?.Nombre == tec.Nombre ? "up" : "down") ms-1"></i>
+                        </small>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Detalle del técnico seleccionado -->
+        @if (_tecSeleccionado != null)
+        {
+            var reps = RepsTecnico(_tecSeleccionado.Nombre);
+            <div class="tec-detalle">
+                <div class="card shadow-sm">
+                    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <span>
+                            <i class="fas fa-list me-2 text-primary"></i>
+                            Reparaciones de <strong>@_tecSeleccionado.Nombre</strong>
+                            <span class="badge bg-secondary ms-2">@reps.Count</span>
+                        </span>
+                        <div class="d-flex gap-2">
+                            <!-- Filtro estado -->
+                            <select class="form-select form-select-sm" style="width:auto"
+                                    @bind="_filtroEstadoTec">
+                                <option value="">Todos los estados</option>
+                                <option value="recibido">Recibido</option>
+                                <option value="diagnosticado">Diagnosticado</option>
+                                <option value="en_reparacion">En reparación</option>
+                                <option value="reparado">Reparado</option>
+                                <option value="entregado">Entregado</option>
+                                <option value="no_reparable">No reparable</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => { _tecSeleccionado = null; _filtroEstadoTec = string.Empty; }">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>N° Orden</th>
+                                    <th>Cliente</th>
+                                    <th>Dispositivo</th>
+                                    <th>Estado</th>
+                                    <th>Prioridad</th>
+                                    <th>Recepción</th>
+                                    <th>Entrega est.</th>
+                                    <th class="text-end">Total</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in reps)
+                                {
+                                    <tr class="@PrioRowClass(r.Prioridad)">
+                                        <td><strong>@r.NumeroOrden</strong></td>
+                                        <td>@r.ClienteNombreCompleto</td>
+                                        <td>
+                                            <div>@r.Dispositivo</div>
+                                            @if (!string.IsNullOrEmpty(r.Marca) || !string.IsNullOrEmpty(r.Modelo))
+                                            {
+                                                <small class="text-muted">@r.Marca @r.Modelo</small>
+                                            }
+                                        </td>
+                                        <td><span class="badge bg-@EstadoColor(r.Estado)">@EstadoLabel(r.Estado)</span></td>
+                                        <td><span class="badge bg-@PrioColor(r.Prioridad)">@r.Prioridad</span></td>
+                                        <td><small>@r.FechaRecepcion.ToString("dd/MM/yyyy")</small></td>
+                                        <td>
+                                            @if (r.FechaEstimadaEntrega.HasValue)
+                                            {
+                                                <small class="@(r.FechaEstimadaEntrega < DateTime.Now && r.Estado != "entregado" ? "text-danger fw-semibold" : "")">
+                                                    @r.FechaEstimadaEntrega.Value.ToString("dd/MM/yyyy")
+                                                </small>
+                                            }
+                                            else { <small class="text-muted">—</small> }
+                                        </td>
+                                        <td class="text-end">
+                                            @if (r.Total.HasValue)
+                                            { <strong>@r.Total.Value.ToString("N2") €</strong> }
+                                            else
+                                            { <span class="text-muted">—</span> }
+                                        </td>
+                                        <td>
+                                            <a href="/reparaciones/@r.Id" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!reps.Any())
+                                {
+                                    <tr>
+                                        <td colspan="9" class="text-center text-muted py-4">
+                                            No hay reparaciones con este filtro.
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    record TecnicoPanel(string Nombre, int Activas, int Urgentes, int Completadas, int EnCurso);
+
+    List<ReparacionDto> _reparaciones = new();
+    List<TecnicoPanel>  _tecnicos     = new();
+    bool   _cargando = true;
+    string _busqueda = string.Empty;
+    string _filtroEstadoTec = string.Empty;
+    TecnicoPanel? _tecSeleccionado;
+
+    IEnumerable<TecnicoPanel> TecFiltrados =>
+        string.IsNullOrWhiteSpace(_busqueda)
+            ? _tecnicos
+            : _tecnicos.Where(t => t.Nombre.Contains(_busqueda, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _reparaciones = await RepSvc.GetAllAsync();
+        _tecnicos = _reparaciones
+            .GroupBy(r => string.IsNullOrWhiteSpace(r.TecnicoAsignado) ? "Sin asignar" : r.TecnicoAsignado.Trim())
+            .Select(g => new TecnicoPanel(
+                Nombre:      g.Key,
+                Activas:     g.Count(r => r.Estado is "recibido" or "diagnosticado" or "en_reparacion" or "reparado"),
+                Urgentes:    g.Count(r => r.Prioridad == "urgente" && r.Estado != "entregado"),
+                Completadas: g.Count(r => r.Estado == "entregado"),
+                EnCurso:     g.Count(r => r.Estado == "en_reparacion")
+            ))
+            // Técnicos con nombre primero, "Sin asignar" al final
+            .OrderBy(t => t.Nombre == "Sin asignar")
+            .ThenByDescending(t => t.Activas)
+            .ToList();
+
+        _cargando = false;
+    }
+
+    List<ReparacionDto> RepsTecnico(string nombre)
+    {
+        var q = nombre == "Sin asignar"
+            ? _reparaciones.Where(r => string.IsNullOrWhiteSpace(r.TecnicoAsignado))
+            : _reparaciones.Where(r => r.TecnicoAsignado?.Trim() == nombre);
+
+        if (!string.IsNullOrEmpty(_filtroEstadoTec))
+            q = q.Where(r => r.Estado == _filtroEstadoTec);
+
+        return q.OrderByDescending(r => r.FechaRecepcion).ToList();
+    }
+
+    void SeleccionarTecnico(TecnicoPanel tec)
+    {
+        _filtroEstadoTec = string.Empty;
+        _tecSeleccionado = _tecSeleccionado?.Nombre == tec.Nombre ? null : tec;
+    }
+
+    static string Iniciales(string nombre)
+    {
+        if (nombre == "Sin asignar") return "?";
+        var p = nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return p.Length >= 2 ? $"{p[0][0]}{p[1][0]}".ToUpper()
+             : nombre.Length > 0 ? nombre[..Math.Min(2, nombre.Length)].ToUpper() : "?";
+    }
+
+    static string EstadoLabel(string e) => e switch
+    {
+        "recibido"      => "Recibido",
+        "diagnosticado" => "Diagnosticado",
+        "en_reparacion" => "En reparación",
+        "reparado"      => "Reparado",
+        "entregado"     => "Entregado",
+        "no_reparable"  => "No reparable",
+        _               => e
+    };
+
+    static string EstadoColor(string e) => e switch
+    {
+        "recibido"      => "secondary",
+        "diagnosticado" => "info",
+        "en_reparacion" => "warning",
+        "reparado"      => "primary",
+        "entregado"     => "success",
+        "no_reparable"  => "danger",
+        _               => "secondary"
+    };
+
+    static string PrioColor(string p) => p switch
+    {
+        "urgente" => "danger",
+        "alta"    => "warning",
+        "normal"  => "primary",
+        _         => "secondary"
+    };
+
+    static string PrioRowClass(string p) => p switch
+    {
+        "urgente" => "prio-urgente",
+        "alta"    => "prio-alta",
+        _         => ""
+    };
+}
