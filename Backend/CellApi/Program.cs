@@ -163,4 +163,16 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-app.Run();
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+var url  = $"http://+:{port}";
+Console.WriteLine($"[Startup] PORT={port}, binding to {url}");
+
+try
+{
+    app.Run(url);
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"[FATAL] {ex}");
+    throw;
+}
