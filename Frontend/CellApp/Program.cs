@@ -5,7 +5,8 @@ using CellApp.Services;
 Environment.CurrentDirectory = AppContext.BaseDirectory;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.UseWindowsService();
+if (OperatingSystem.IsWindows())
+    builder.Host.UseWindowsService();
 
 // ── Blazor Server ────────────────────────────────────────────────
 builder.Services.AddRazorComponents()

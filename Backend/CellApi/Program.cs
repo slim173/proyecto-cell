@@ -18,7 +18,8 @@ var webRootPreBuild = Path.Combine(AppContext.BaseDirectory, "wwwroot");
 Directory.CreateDirectory(webRootPreBuild);
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.UseWindowsService();
+if (OperatingSystem.IsWindows())
+    builder.Host.UseWindowsService();
 builder.WebHost.UseWebRoot(webRootPreBuild);   // garantiza WebRootPath != null
 
 // ── Dapper: mapeo automático snake_case → PascalCase ────────────
