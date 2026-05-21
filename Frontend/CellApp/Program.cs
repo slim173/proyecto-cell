@@ -68,6 +68,11 @@ app.UseAntiforgery();
 app.MapRazorComponents<CellApp.Components.App>()
     .AddInteractiveServerRenderMode();
 
+app.Lifetime.ApplicationStarted.Register(() =>
+    Console.WriteLine("[READY] App escuchando y lista."));
+app.Lifetime.ApplicationStopping.Register(() =>
+    Console.WriteLine("[STOPPING] App recibió señal de parada."));
+
 try
 {
     app.Run();
