@@ -18,9 +18,13 @@ Environment.CurrentDirectory = AppContext.BaseDirectory;
 var webRootPreBuild = Path.Combine(AppContext.BaseDirectory, "wwwroot");
 Directory.CreateDirectory(webRootPreBuild);
 
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+Console.WriteLine($"[Startup] PORT={port}");
+
 var builder = WebApplication.CreateBuilder(args);
 if (OperatingSystem.IsWindows())
     builder.Host.UseWindowsService();
+builder.WebHost.UseUrls($"http://+:{port}");
 builder.WebHost.UseWebRoot(webRootPreBuild);   // garantiza WebRootPath != null
 
 // ── DataProtection: usar /tmp para evitar cuelgue en containers ─
@@ -168,13 +172,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-var url  = $"http://+:{port}";
-Console.WriteLine($"[Startup] PORT={port}, binding to {url}");
-
 try
 {
-    app.Run(url);
+    app.Run();
 }
 catch (Exception ex)
 {

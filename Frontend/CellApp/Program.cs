@@ -5,9 +5,14 @@ using Microsoft.AspNetCore.DataProtection;
 // Fijar directorio de trabajo al del exe (necesario para Windows Service)
 Environment.CurrentDirectory = AppContext.BaseDirectory;
 
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+Console.WriteLine($"[Startup] PORT={port}");
+
 var builder = WebApplication.CreateBuilder(args);
 if (OperatingSystem.IsWindows())
     builder.Host.UseWindowsService();
+
+builder.WebHost.UseUrls($"http://+:{port}");
 
 // ── DataProtection: usar /tmp para evitar cuelgue en containers ─
 builder.Services.AddDataProtection()
@@ -66,13 +71,9 @@ app.UseAntiforgery();
 app.MapRazorComponents<CellApp.Components.App>()
     .AddInteractiveServerRenderMode();
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-var url  = $"http://+:{port}";
-Console.WriteLine($"[Startup] PORT={port}, binding to {url}");
-
 try
 {
-    app.Run(url);
+    app.Run();
 }
 catch (Exception ex)
 {
