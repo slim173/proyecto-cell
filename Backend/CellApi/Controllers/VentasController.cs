@@ -50,7 +50,7 @@ public class VentasController : ControllerBase
         }
         catch (KeyNotFoundException ex)      { return NotFound(ApiResponse<VentaDto>.Fail(ex.Message)); }
         catch (InvalidOperationException ex) { return BadRequest(ApiResponse<VentaDto>.Fail(ex.Message)); }
-        catch (Exception ex)                 { return StatusCode(500, ApiResponse<VentaDto>.Fail("Error interno: " + ex.Message)); }
+        catch (Exception)                    { return StatusCode(500, ApiResponse<VentaDto>.Fail("Error interno del servidor.")); }
     }
 
     [HttpPatch("{id:int}/estado")]
@@ -78,7 +78,7 @@ public class VentasController : ControllerBase
         }
         catch (KeyNotFoundException ex)      { return NotFound(ApiResponse.Fail(ex.Message)); }
         catch (InvalidOperationException ex) { return BadRequest(ApiResponse.Fail(ex.Message)); }
-        catch (Exception ex)                 { return StatusCode(500, ApiResponse.Fail("Error al generar factura: " + ex.Message)); }
+        catch (Exception)                    { return StatusCode(500, ApiResponse.Fail("Error al generar factura.")); }
     }
 
     [AllowAnonymous]
