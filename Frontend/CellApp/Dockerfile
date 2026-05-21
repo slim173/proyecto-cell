@@ -7,6 +7,6 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app/publish .
 COPY start.sh .
-RUN chmod +x start.sh
+RUN sed -i 's/\r//' start.sh && chmod +x start.sh
 EXPOSE 8080
 ENTRYPOINT ["/bin/sh", "start.sh"]
