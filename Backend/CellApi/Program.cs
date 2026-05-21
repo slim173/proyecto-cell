@@ -163,6 +163,9 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+// ── Migraciones automáticas de BD ───────────────────────────────
+await DbMigrator.RunAsync(app.Services.GetRequiredService<DbConnectionFactory>());
+
 app.UseCors("AllowAll");
 
 app.UseStaticFiles();
