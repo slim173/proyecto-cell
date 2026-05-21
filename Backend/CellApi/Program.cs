@@ -6,6 +6,7 @@ using CellApi.Services;
 using CellApi.Settings;
 using Dapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using QuestPDF.Infrastructure;
@@ -21,6 +22,10 @@ var builder = WebApplication.CreateBuilder(args);
 if (OperatingSystem.IsWindows())
     builder.Host.UseWindowsService();
 builder.WebHost.UseWebRoot(webRootPreBuild);   // garantiza WebRootPath != null
+
+// ── DataProtection: usar /tmp para evitar cuelgue en containers ─
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/tmp/dp-keys"));
 
 // ── Dapper: mapeo automático snake_case → PascalCase ────────────
 DefaultTypeMap.MatchNamesWithUnderscores = true;

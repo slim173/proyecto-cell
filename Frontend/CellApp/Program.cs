@@ -1,5 +1,6 @@
 using CellApp.Handlers;
 using CellApp.Services;
+using Microsoft.AspNetCore.DataProtection;
 
 // Fijar directorio de trabajo al del exe (necesario para Windows Service)
 Environment.CurrentDirectory = AppContext.BaseDirectory;
@@ -7,6 +8,10 @@ Environment.CurrentDirectory = AppContext.BaseDirectory;
 var builder = WebApplication.CreateBuilder(args);
 if (OperatingSystem.IsWindows())
     builder.Host.UseWindowsService();
+
+// ── DataProtection: usar /tmp para evitar cuelgue en containers ─
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/tmp/dp-keys"));
 
 // ── Blazor Server ────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
