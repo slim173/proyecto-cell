@@ -369,10 +369,11 @@
         return i > 0 ? n[..i] : n;
     }
 
-    string Saludo() => DateTime.Now.Hour switch
+    string Saludo()
     {
-        < 13 => "Buenos días",
-        < 21 => "Buenas tardes",
-        _    => "Buenas noches"
-    };
+        var h = DateTime.Now.Hour;
+        if (h < 13) return "Buenos días";
+        if (h < 21) return "Buenas tardes";
+        return "Buenas noches";
+    }
 }
