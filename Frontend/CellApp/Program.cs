@@ -65,6 +65,8 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseAntiforgery();
 
+app.MapGet("/health", () => "OK");
+
 app.MapRazorComponents<CellApp.Components.App>()
     .AddInteractiveServerRenderMode();
 
