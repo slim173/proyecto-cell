@@ -1,0 +1,5 @@
+[phases.build]
+cmds = ["dotnet publish CellApp.csproj -c Release -o /app/publish"]
+
+[start]
+cmd = "dotnet /app/publish/CellApp.dll"
