@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.DataProtection;
 // Fijar directorio de trabajo al del exe (necesario para Windows Service)
 Environment.CurrentDirectory = AppContext.BaseDirectory;
 
-Console.WriteLine("[Startup] Iniciando CellApp...");
+Console.WriteLine($"[Startup] PORT={Environment.GetEnvironmentVariable("PORT")} | HTTP_PORTS={Environment.GetEnvironmentVariable("HTTP_PORTS")} | ASPNETCORE_URLS={Environment.GetEnvironmentVariable("ASPNETCORE_URLS")}");
 
 var builder = WebApplication.CreateBuilder(args);
 if (OperatingSystem.IsWindows())
