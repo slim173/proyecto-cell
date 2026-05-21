@@ -18,13 +18,11 @@ Environment.CurrentDirectory = AppContext.BaseDirectory;
 var webRootPreBuild = Path.Combine(AppContext.BaseDirectory, "wwwroot");
 Directory.CreateDirectory(webRootPreBuild);
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-Console.WriteLine($"[Startup] PORT={port}");
+Console.WriteLine("[Startup] Iniciando CellApi...");
 
 var builder = WebApplication.CreateBuilder(args);
 if (OperatingSystem.IsWindows())
     builder.Host.UseWindowsService();
-builder.WebHost.UseUrls($"http://+:{port}");
 builder.WebHost.UseWebRoot(webRootPreBuild);   // garantiza WebRootPath != null
 
 // ── DataProtection: usar /tmp para evitar cuelgue en containers ─

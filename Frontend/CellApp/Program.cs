@@ -5,14 +5,11 @@ using Microsoft.AspNetCore.DataProtection;
 // Fijar directorio de trabajo al del exe (necesario para Windows Service)
 Environment.CurrentDirectory = AppContext.BaseDirectory;
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-Console.WriteLine($"[Startup] PORT={port}");
+Console.WriteLine("[Startup] Iniciando CellApp...");
 
 var builder = WebApplication.CreateBuilder(args);
 if (OperatingSystem.IsWindows())
     builder.Host.UseWindowsService();
-
-builder.WebHost.UseUrls($"http://+:{port}");
 
 // ── DataProtection: usar /tmp para evitar cuelgue en containers ─
 builder.Services.AddDataProtection()
