@@ -74,6 +74,8 @@ public class PdfService : IPdfService
         Dictionary<string, string> config, FacturaDto factura,
         string pie, byte[]? logo)
     {
+        var ivaFactor = 1m + factura.PorcentajeIva / 100m;
+
         return Document.Create(container =>
         {
             container.Page(page =>
@@ -84,76 +86,132 @@ public class PdfService : IPdfService
 
                 page.Content().Column(col =>
                 {
+                    // Cabecera empresa
                     CabeceraPagina(col, config, "FACTURA",
                         factura.NumeroFactura,
                         factura.FechaEmision.ToString("dd/MM/yyyy"),
                         logo);
 
-                    // Datos cliente
-                    col.Item().Border(1).BorderColor(Colors.Grey.Lighten2)
-                        .Padding(8).Column(c =>
-                        {
-                            c.Item().Text("DATOS DEL CLIENTE").Bold().FontSize(9).FontColor(Colors.Grey.Darken2);
-                            c.Item().Text(factura.ClienteNombreCompleto ?? "").Bold();
-                            if (!string.IsNullOrEmpty(factura.ClienteNif))
-                                c.Item().Text($"NIF/CIF: {factura.ClienteNif}").FontSize(9);
-                            if (!string.IsNullOrEmpty(factura.ClienteDireccion))
-                                c.Item().Text(factura.ClienteDireccion).FontSize(9);
-                            if (!string.IsNullOrEmpty(factura.ClienteEmail))
-                                c.Item().Text(factura.ClienteEmail).FontSize(9);
-                        });
+                    // Cliente (izquierda) + Resumen fiscal (derecha)
+                    col.Item().Row(row =>
+                    {
+                        row.RelativeItem().Border(1).BorderColor(Colors.Grey.Lighten2)
+                            .Padding(10).Column(c =>
+                            {
+                                c.Item().Text("DATOS DEL CLIENTE")
+                                    .Bold().FontSize(8).FontColor(Colors.Blue.Darken2);
+                                c.Item().PaddingTop(4)
+                                    .Text(factura.ClienteNombreCompleto ?? "—").Bold().FontSize(11);
+                                if (!string.IsNullOrEmpty(factura.ClienteNif))
+                                    c.Item().PaddingTop(2)
+                                        .Text($"NIF/CIF: {factura.ClienteNif}").FontSize(9);
+                                if (!string.IsNullOrEmpty(factura.ClienteDireccion))
+                                    c.Item().Text(factura.ClienteDireccion).FontSize(9);
+                                if (!string.IsNullOrEmpty(factura.ClienteEmail))
+                                    c.Item().Text(factura.ClienteEmail).FontSize(9);
+                            });
 
-                    col.Item().PaddingTop(12);
+                        row.ConstantItem(10);
 
-                    // Tabla de líneas
+                        row.RelativeItem().Border(1).BorderColor(Colors.Blue.Darken2)
+                            .Padding(10).Column(c =>
+                            {
+                                c.Item().Text("DATOS DE LA FACTURA")
+                                    .Bold().FontSize(8).FontColor(Colors.Blue.Darken2);
+                                c.Item().PaddingTop(4).Row(r =>
+                                {
+                                    r.RelativeItem().Text("Número:").FontSize(9).FontColor(Colors.Grey.Darken2);
+                                    r.AutoItem().Text(factura.NumeroFactura).Bold().FontSize(9);
+                                });
+                                c.Item().Row(r =>
+                                {
+                                    r.RelativeItem().Text("Fecha:").FontSize(9).FontColor(Colors.Grey.Darken2);
+                                    r.AutoItem().Text(factura.FechaEmision.ToString("dd/MM/yyyy")).FontSize(9);
+                                });
+                                if (factura.ReparacionId.HasValue)
+                                    c.Item().Row(r =>
+                                    {
+                                        r.RelativeItem().Text("Orden rep.:").FontSize(9).FontColor(Colors.Grey.Darken2);
+                                        r.AutoItem().Text($"#{factura.ReparacionId}").FontSize(9);
+                                    });
+                                c.Item().PaddingTop(6).Row(r =>
+                                {
+                                    r.RelativeItem().Text("Base imponible:").FontSize(9).FontColor(Colors.Grey.Darken2);
+                                    r.AutoItem().Text($"{factura.BaseImponible:F2} €").FontSize(9);
+                                });
+                                c.Item().Row(r =>
+                                {
+                                    r.RelativeItem().Text($"IVA ({factura.PorcentajeIva:0}%):").FontSize(9).FontColor(Colors.Grey.Darken2);
+                                    r.AutoItem().Text($"{factura.ImporteIva:F2} €").FontSize(9);
+                                });
+                            });
+                    });
+
+                    col.Item().PaddingTop(14);
+
+                    // Tabla de líneas — precios CON IVA (PVP)
                     col.Item().Table(table =>
                     {
                         table.ColumnsDefinition(cols =>
                         {
                             cols.RelativeColumn(5);
-                            cols.RelativeColumn(1);
-                            cols.RelativeColumn(2);
-                            cols.RelativeColumn(2);
+                            cols.ConstantColumn(40);
+                            cols.ConstantColumn(85);
+                            cols.ConstantColumn(85);
                         });
 
                         table.Header(header =>
                         {
                             static IContainer H(IContainer c) =>
-                                c.Background(Colors.Blue.Darken2).Padding(6)
+                                c.Background(Colors.Blue.Darken2).Padding(7)
                                  .DefaultTextStyle(t => t.FontColor(Colors.White).Bold().FontSize(9));
                             header.Cell().Element(H).Text("Descripción");
                             header.Cell().Element(H).AlignCenter().Text("Cant.");
-                            header.Cell().Element(H).AlignRight().Text("Precio unit.");
-                            header.Cell().Element(H).AlignRight().Text("Subtotal");
+                            header.Cell().Element(H).AlignRight().Text("Precio c/IVA");
+                            header.Cell().Element(H).AlignRight().Text("Total c/IVA");
                         });
 
                         bool par = false;
                         foreach (var linea in factura.Lineas)
                         {
-                            var bg = par ? Colors.Grey.Lighten4 : Colors.White;
-                            par = !par;
-                            static IContainer R(IContainer c, string bg) => c.Background(bg).Padding(5);
+                            var bg      = par ? Colors.Grey.Lighten4 : Colors.White;
+                            par         = !par;
+                            var pvpUnit = Math.Round(linea.PrecioUnitario * ivaFactor, 2);
+                            var pvpTot  = Math.Round(linea.Subtotal * ivaFactor, 2);
+
+                            static IContainer R(IContainer c, string bg) => c.Background(bg).Padding(6);
                             table.Cell().Element(c => R(c, bg)).Text(linea.Descripcion);
                             table.Cell().Element(c => R(c, bg)).AlignCenter().Text(linea.Cantidad.ToString());
-                            table.Cell().Element(c => R(c, bg)).AlignRight().Text($"{linea.PrecioUnitario:F2} €");
-                            table.Cell().Element(c => R(c, bg)).AlignRight().Text($"{linea.Subtotal:F2} €");
+                            table.Cell().Element(c => R(c, bg)).AlignRight().Text($"{pvpUnit:F2} €");
+                            table.Cell().Element(c => R(c, bg)).AlignRight().Text($"{pvpTot:F2} €");
                         }
                     });
 
-                    // Totales
-                    col.Item().PaddingTop(12).AlignRight().Width(200).Table(t =>
+                    col.Item().PaddingTop(2).AlignRight()
+                        .Text("* Precios con IVA incluido.")
+                        .FontSize(7).FontColor(Colors.Grey.Darken1).Italic();
+
+                    // Bloque total
+                    col.Item().PaddingTop(10).AlignRight().Width(265).Table(t =>
                     {
                         t.ColumnsDefinition(c => { c.RelativeColumn(3); c.RelativeColumn(2); });
-                        t.Cell().Padding(3).Text("Base imponible:");
-                        t.Cell().Padding(3).AlignRight().Text($"{factura.BaseImponible:F2} €");
-                        t.Cell().Padding(3).Text($"IVA ({factura.PorcentajeIva:0}%):");
-                        t.Cell().Padding(3).AlignRight().Text($"{factura.ImporteIva:F2} €");
-                        t.Cell().ColumnSpan(2).LineHorizontal(1).LineColor(Colors.Blue.Darken2);
-                        t.Cell().Padding(3).Text("TOTAL:").Bold();
-                        t.Cell().Padding(3).AlignRight().Text($"{factura.Total:F2} €").Bold();
+
+                        t.Cell().Padding(5).Text("Base imponible:").FontSize(9).FontColor(Colors.Grey.Darken2);
+                        t.Cell().Padding(5).AlignRight().Text($"{factura.BaseImponible:F2} €").FontSize(9);
+
+                        t.Cell().Padding(5).Text($"IVA ({factura.PorcentajeIva:0}%):").FontSize(9).FontColor(Colors.Grey.Darken2);
+                        t.Cell().Padding(5).AlignRight().Text($"{factura.ImporteIva:F2} €").FontSize(9);
+
+                        t.Cell().ColumnSpan(2).LineHorizontal(2).LineColor(Colors.Blue.Darken2);
+
+                        static IContainer Tot(IContainer c) =>
+                            c.Background(Colors.Blue.Darken2).Padding(9)
+                             .DefaultTextStyle(s => s.FontColor(Colors.White).Bold().FontSize(13));
+                        t.Cell().Element(Tot).Text("TOTAL  (IVA incluido)");
+                        t.Cell().Element(Tot).AlignRight().Text($"{factura.Total:F2} €");
                     });
 
-                    // QR digital (si hay URL pública configurada)
+                    // QR digital
                     var urlPublicaF = config.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
                     if (!string.IsNullOrEmpty(urlPublicaF))
                     {
@@ -189,6 +247,7 @@ public class PdfService : IPdfService
         var empresaNombre = config.GetValueOrDefault("empresa_nombre",   "CellShop");
         var empresaTel    = config.GetValueOrDefault("empresa_telefono", "");
         var empresaEmail  = config.GetValueOrDefault("empresa_email",    "");
+        var ivaFactor     = 1m + factura.PorcentajeIva / 100m;
         float fs    = anchoPapelMm >= 70 ? 8f : 7f;
         float fsBig = fs + 2;
         float fsMed = fs + 1;
@@ -249,22 +308,26 @@ public class PdfService : IPdfService
 
                     col.Item().PaddingVertical(2).LineHorizontal(0.5f).LineColor(Colors.Black);
 
-                    // Líneas
+                    // Líneas — precios CON IVA (PVP)
                     foreach (var linea in factura.Lineas)
                     {
+                        var pvpTot = Math.Round(linea.Subtotal * ivaFactor, 2);
                         col.Item().Row(r =>
                         {
                             r.RelativeItem().Text(linea.Descripcion).FontSize(fs);
-                            r.AutoItem().AlignRight().Text($"{linea.Subtotal:F2} €").FontSize(fs);
+                            r.AutoItem().AlignRight().Text($"{pvpTot:F2} €").FontSize(fs);
                         });
                         if (linea.Cantidad != 1)
-                            col.Item().Text($"  {linea.Cantidad} × {linea.PrecioUnitario:F2} €")
+                        {
+                            var pvpUnit = Math.Round(linea.PrecioUnitario * ivaFactor, 2);
+                            col.Item().Text($"  {linea.Cantidad} × {pvpUnit:F2} €")
                                .FontSize(fsTiny).FontColor(Colors.Grey.Darken1);
+                        }
                     }
 
                     col.Item().PaddingVertical(1).LineHorizontal(0.5f).LineColor(Colors.Black);
 
-                    // Totales
+                    // Desglose fiscal
                     col.Item().Row(r =>
                     {
                         r.RelativeItem().Text("Base imponible:").FontSize(fsTiny);
@@ -278,7 +341,7 @@ public class PdfService : IPdfService
                     col.Item().PaddingVertical(1).LineHorizontal(0.5f).LineColor(Colors.Black);
                     col.Item().Row(r =>
                     {
-                        r.RelativeItem().Text("TOTAL:").Bold().FontSize(fsMed);
+                        r.RelativeItem().Text("TOTAL (IVA incl.):").Bold().FontSize(fsMed);
                         r.AutoItem().AlignRight().Text($"{factura.Total:F2} €").Bold().FontSize(fsMed);
                     });
 
