@@ -81,5 +81,29 @@ public static class DbMigrator
             END;
             $$ LANGUAGE plpgsql;
         ");
+
+        await SyncSmtpConfigAsync(conn);
+    }
+
+    private static async Task SyncSmtpConfigAsync(System.Data.IDbConnection conn)
+    {
+        var vars = new Dictionary<string, string?>
+        {
+            ["smtp_host"]       = Environment.GetEnvironmentVariable("SMTP_HOST"),
+            ["smtp_puerto"]     = Environment.GetEnvironmentVariable("SMTP_PUERTO"),
+            ["smtp_ssl"]        = Environment.GetEnvironmentVariable("SMTP_SSL"),
+            ["smtp_usuario"]    = Environment.GetEnvironmentVariable("SMTP_USUARIO"),
+            ["smtp_password"]   = Environment.GetEnvironmentVariable("SMTP_PASSWORD"),
+            ["smtp_from_name"]  = Environment.GetEnvironmentVariable("SMTP_FROM_NAME"),
+            ["smtp_from_email"] = Environment.GetEnvironmentVariable("SMTP_FROM_EMAIL"),
+        };
+
+        foreach (var (clave, valor) in vars)
+        {
+            if (string.IsNullOrEmpty(valor)) continue;
+            await conn.ExecuteAsync(
+                "UPDATE configuracion SET valor = @Valor WHERE clave = @Clave",
+                new { Clave = clave, Valor = valor });
+        }
     }
 }
