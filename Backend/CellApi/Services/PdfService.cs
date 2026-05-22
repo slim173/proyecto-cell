@@ -81,25 +81,22 @@ public class PdfService : IPdfService
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.Margin(2f, Unit.Centimetre);
+                page.Margin(1.5f, Unit.Centimetre);
                 page.DefaultTextStyle(x => x.FontSize(10));
 
                 page.Content().Column(col =>
                 {
-                    // ── Cabecera empresa ────────────────────────────
                     CabeceraPagina(col, config, "FACTURA",
                         factura.NumeroFactura,
                         factura.FechaEmision.ToString("dd/MM/yyyy"),
                         logo);
 
-                    // ── Datos del cliente ───────────────────────────
+                    // Datos cliente
                     col.Item().Border(1).BorderColor(Colors.Grey.Lighten2)
-                        .Background("#f8f9fa").Padding(10).Column(c =>
+                        .Padding(8).Column(c =>
                         {
-                            c.Item().Text("DATOS DEL CLIENTE")
-                                .Bold().FontSize(8).FontColor(Colors.Blue.Darken2);
-                            c.Item().PaddingTop(3)
-                                .Text(factura.ClienteNombreCompleto ?? "—").Bold().FontSize(11);
+                            c.Item().Text("DATOS DEL CLIENTE").Bold().FontSize(9).FontColor(Colors.Grey.Darken2);
+                            c.Item().Text(factura.ClienteNombreCompleto ?? "").Bold();
                             if (!string.IsNullOrEmpty(factura.ClienteNif))
                                 c.Item().Text($"NIF/CIF: {factura.ClienteNif}").FontSize(9);
                             if (!string.IsNullOrEmpty(factura.ClienteDireccion))
@@ -108,9 +105,9 @@ public class PdfService : IPdfService
                                 c.Item().Text(factura.ClienteEmail).FontSize(9);
                         });
 
-                    col.Item().PaddingTop(14);
+                    col.Item().PaddingTop(12);
 
-                    // ── Tabla de líneas (precios PVP = con IVA) ────
+                    // Tabla de líneas — precios PVP (con IVA incluido)
                     col.Item().Table(table =>
                     {
                         table.ColumnsDefinition(cols =>
@@ -124,7 +121,7 @@ public class PdfService : IPdfService
                         table.Header(header =>
                         {
                             static IContainer H(IContainer c) =>
-                                c.Background(Colors.Blue.Darken2).Padding(7)
+                                c.Background(Colors.Blue.Darken2).Padding(6)
                                  .DefaultTextStyle(t => t.FontColor(Colors.White).Bold().FontSize(9));
                             header.Cell().Element(H).Text("Descripción");
                             header.Cell().Element(H).AlignCenter().Text("Cant.");
@@ -139,7 +136,7 @@ public class PdfService : IPdfService
                             par         = !par;
                             var pvpUnit = Math.Round(linea.PrecioUnitario * ivaFactor, 2);
                             var pvpTot  = Math.Round(linea.Subtotal * ivaFactor, 2);
-                            static IContainer R(IContainer c, string bg) => c.Background(bg).Padding(6);
+                            static IContainer R(IContainer c, string bg) => c.Background(bg).Padding(5);
                             table.Cell().Element(c => R(c, bg)).Text(linea.Descripcion);
                             table.Cell().Element(c => R(c, bg)).AlignCenter().Text(linea.Cantidad.ToString());
                             table.Cell().Element(c => R(c, bg)).AlignRight().Text($"{pvpUnit:F2} €");
@@ -147,31 +144,20 @@ public class PdfService : IPdfService
                         }
                     });
 
-                    // ── Bloque totales ──────────────────────────────
-                    col.Item().PaddingTop(12).AlignRight().Width(220).Table(t =>
+                    // Totales
+                    col.Item().PaddingTop(12).AlignRight().Width(200).Table(t =>
                     {
                         t.ColumnsDefinition(c => { c.RelativeColumn(3); c.RelativeColumn(2); });
-
-                        t.Cell().Padding(4).Text("Base imponible:").FontSize(9).FontColor(Colors.Grey.Darken2);
-                        t.Cell().Padding(4).AlignRight().Text($"{factura.BaseImponible:F2} €").FontSize(9);
-
-                        t.Cell().Padding(4).Text($"IVA ({factura.PorcentajeIva:0}%):").FontSize(9).FontColor(Colors.Grey.Darken2);
-                        t.Cell().Padding(4).AlignRight().Text($"{factura.ImporteIva:F2} €").FontSize(9);
-
-                        t.Cell().ColumnSpan(2).LineHorizontal(2).LineColor(Colors.Blue.Darken2);
-
-                        static IContainer Tot(IContainer c) =>
-                            c.Background(Colors.Blue.Darken2).Padding(8)
-                             .DefaultTextStyle(s => s.FontColor(Colors.White).Bold().FontSize(13));
-                        t.Cell().Element(Tot).Text("TOTAL (IVA incl.)");
-                        t.Cell().Element(Tot).AlignRight().Text($"{factura.Total:F2} €");
+                        t.Cell().Padding(3).Text("Base imponible:").FontSize(9);
+                        t.Cell().Padding(3).AlignRight().Text($"{factura.BaseImponible:F2} €").FontSize(9);
+                        t.Cell().Padding(3).Text($"IVA ({factura.PorcentajeIva:0}%):").FontSize(9);
+                        t.Cell().Padding(3).AlignRight().Text($"{factura.ImporteIva:F2} €").FontSize(9);
+                        t.Cell().ColumnSpan(2).LineHorizontal(1).LineColor(Colors.Blue.Darken2);
+                        t.Cell().Padding(3).Text("TOTAL (IVA incluido):").Bold();
+                        t.Cell().Padding(3).AlignRight().Text($"{factura.Total:F2} €").Bold().FontSize(12);
                     });
 
-                    col.Item().PaddingTop(3).AlignRight()
-                        .Text("IVA incluido en el precio total.")
-                        .FontSize(7).FontColor(Colors.Grey.Darken1).Italic();
-
-                    // ── QR digital (si URL pública configurada) ─────
+                    // QR digital (si hay URL pública configurada)
                     var urlPublicaF = config.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
                     if (!string.IsNullOrEmpty(urlPublicaF))
                     {

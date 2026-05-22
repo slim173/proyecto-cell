@@ -123,13 +123,59 @@ public static class DbMigrator
             }
         }
 
-        await SyncSmtpConfigAsync(conn, logger);
+        await SeedEmpresaConfigAsync(conn, logger);
+        await SyncEnvVarsAsync(conn, logger);
     }
 
-    private static async Task SyncSmtpConfigAsync(System.Data.IDbConnection conn, ILogger? logger)
+    // Inserta claves de empresa/config si todavía no existen en BD
+    private static async Task SeedEmpresaConfigAsync(System.Data.IDbConnection conn, ILogger? logger)
+    {
+        var defaults = new (string clave, string valor, string desc)[]
+        {
+            ("empresa_nombre",    "CellShop",    "Nombre comercial"),
+            ("empresa_cif",       "",            "CIF / NIF"),
+            ("empresa_telefono",  "",            "Teléfono de contacto"),
+            ("empresa_direccion", "",            "Dirección"),
+            ("empresa_ciudad",    "",            "Ciudad"),
+            ("empresa_cp",        "",            "Código postal"),
+            ("empresa_email",     "",            "Email de empresa"),
+            ("empresa_web",       "",            "Sitio web"),
+            ("empresa_logo",      "",            "Logo (ruta relativa a wwwroot)"),
+            ("iva_porcentaje",    "21",          "IVA por defecto (%)"),
+            ("ticket_formato",    "a4",          "Formato de impresión (a4/ticket_80mm/ticket_58mm)"),
+            ("ticket_mostrar_qr", "true",        "Mostrar QR en tickets"),
+            ("ticket_clausula_reparacion", "",   "Cláusula de reparación en tickets"),
+            ("ticket_clausula_recogida",   "",   "Condiciones de recogida en tickets"),
+            ("factura_pie_texto", "",            "Pie de factura"),
+            ("empresa_url_publica", "",          "URL pública (para QR en PDFs)"),
+        };
+
+        const string sql = @"
+            INSERT INTO configuracion (clave, valor, descripcion)
+            VALUES (@Clave, @Valor, @Desc)
+            ON CONFLICT (clave) DO NOTHING";
+
+        foreach (var (clave, valor, desc) in defaults)
+        {
+            try
+            {
+                await conn.ExecuteAsync(sql, new { Clave = clave, Valor = valor, Desc = desc });
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "[DbMigrator] Error seed config {Clave}", clave);
+            }
+        }
+
+        logger?.LogInformation("[DbMigrator] Seed configuracion OK");
+    }
+
+    // Sobreescribe claves de configuracion con variables de entorno de Railway/Docker
+    private static async Task SyncEnvVarsAsync(System.Data.IDbConnection conn, ILogger? logger)
     {
         var vars = new Dictionary<string, string?>
         {
+            // SMTP
             ["smtp_host"]       = Environment.GetEnvironmentVariable("SMTP_HOST"),
             ["smtp_puerto"]     = Environment.GetEnvironmentVariable("SMTP_PUERTO"),
             ["smtp_ssl"]        = Environment.GetEnvironmentVariable("SMTP_SSL"),
@@ -137,20 +183,28 @@ public static class DbMigrator
             ["smtp_password"]   = Environment.GetEnvironmentVariable("SMTP_PASSWORD"),
             ["smtp_from_name"]  = Environment.GetEnvironmentVariable("SMTP_FROM_NAME"),
             ["smtp_from_email"] = Environment.GetEnvironmentVariable("SMTP_FROM_EMAIL"),
+            // Empresa (Railway Variables)
+            ["empresa_nombre"]    = Environment.GetEnvironmentVariable("EMPRESA_NOMBRE"),
+            ["empresa_cif"]       = Environment.GetEnvironmentVariable("EMPRESA_CIF"),
+            ["empresa_telefono"]  = Environment.GetEnvironmentVariable("EMPRESA_TELEFONO"),
+            ["empresa_direccion"] = Environment.GetEnvironmentVariable("EMPRESA_DIRECCION"),
+            ["empresa_ciudad"]    = Environment.GetEnvironmentVariable("EMPRESA_CIUDAD"),
+            ["empresa_cp"]        = Environment.GetEnvironmentVariable("EMPRESA_CP"),
+            ["empresa_email"]     = Environment.GetEnvironmentVariable("EMPRESA_EMAIL"),
         };
+
+        const string sql = "UPDATE configuracion SET valor = @Valor WHERE clave = @Clave";
 
         foreach (var (clave, valor) in vars)
         {
             if (string.IsNullOrEmpty(valor)) continue;
             try
             {
-                await conn.ExecuteAsync(
-                    "UPDATE configuracion SET valor = @Valor WHERE clave = @Clave",
-                    new { Clave = clave, Valor = valor });
+                await conn.ExecuteAsync(sql, new { Clave = clave, Valor = valor });
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "[DbMigrator] Error sync SMTP {Clave}", clave);
+                logger?.LogError(ex, "[DbMigrator] Error sync env var {Clave}", clave);
             }
         }
     }
