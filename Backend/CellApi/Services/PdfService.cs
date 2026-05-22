@@ -325,24 +325,24 @@ public class PdfService : IPdfService
                         .Bold().FontSize(20).FontColor(Colors.Black);
 
                     col.Item().PaddingTop(2).Text(rep.ClienteNombreCompleto ?? "")
-                        .Bold().FontSize(13).FontColor(Colors.Blue.Darken2);
+                        .Bold().FontSize(13).FontColor(Colors.Blue.Darken4);
 
                     if (!string.IsNullOrEmpty(rep.ClienteTelefono))
                         col.Item().PaddingTop(1).Text(rep.ClienteTelefono)
-                            .Bold().FontSize(16).FontColor(Colors.Grey.Darken2);
+                            .Bold().FontSize(16).FontColor(Colors.Black);
 
                     col.Item().PaddingTop(1)
                         .Text(rep.FechaRecepcion.ToString("dd/MM/yyyy"))
-                        .Bold().FontSize(9).FontColor(Colors.Grey.Darken2);
+                        .Bold().FontSize(9).FontColor(Colors.Grey.Darken4);
 
                     var precio = rep.PrecioFinal ?? rep.PrecioEstimado;
                     if (precio.HasValue)
                         col.Item().PaddingTop(1)
                             .Text($"{precio.Value:N2} €")
-                            .Bold().FontSize(13).FontColor(Colors.Green.Darken2);
+                            .Bold().FontSize(13).FontColor(Colors.Green.Darken4);
 
                     col.Item().PaddingTop(2).Text(falla)
-                        .Bold().FontSize(11).FontColor(Colors.Grey.Darken2);
+                        .Bold().FontSize(11).FontColor(Colors.Black);
                 });
             });
         }).GeneratePdf();
