@@ -1,21 +1,36 @@
-@inject IJSRuntime JS
-
-@* Abre el PDF en nueva pestaña vía JS en cuanto recibe la URL *@
+@if (!string.IsNullOrEmpty(PdfUrl))
+{
+    <div style="position:fixed;bottom:24px;right:24px;z-index:1070;
+                background:#1e2430;color:#fff;border-radius:10px;
+                padding:14px 18px;display:flex;align-items:center;gap:12px;
+                box-shadow:0 6px 24px rgba(0,0,0,.4);max-width:340px;">
+        <i class="fas fa-file-pdf text-danger" style="font-size:1.4rem;flex-shrink:0;"></i>
+        <div style="flex:1;min-width:0;">
+            <div style="font-size:.85rem;font-weight:600;
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                @Titulo
+            </div>
+            <div style="font-size:.75rem;opacity:.7;margin-top:2px;">
+                PDF listo — pulsa para abrir
+            </div>
+        </div>
+        <a href="@PdfUrl" target="_blank" rel="noopener"
+           class="btn btn-sm btn-primary flex-shrink-0"
+           @onclick="Cerrar">
+            <i class="fas fa-external-link-alt me-1"></i>Abrir
+        </a>
+        <button class="btn btn-sm flex-shrink-0"
+                style="background:rgba(255,255,255,.1);color:#fff;border:none;"
+                @onclick="Cerrar" title="Cerrar">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+}
 
 @code {
-    private string _lastUrl = string.Empty;
-
     [Parameter] public string        PdfUrl  { get; set; } = string.Empty;
     [Parameter] public string        Titulo  { get; set; } = "Vista previa";
     [Parameter] public EventCallback OnClose { get; set; }
 
-    protected override async Task OnParametersSetAsync()
-    {
-        if (!string.IsNullOrEmpty(PdfUrl) && PdfUrl != _lastUrl)
-        {
-            _lastUrl = PdfUrl;
-            await JS.InvokeVoidAsync("open", PdfUrl, "_blank");
-            await OnClose.InvokeAsync();
-        }
-    }
+    async Task Cerrar() => await OnClose.InvokeAsync();
 }
