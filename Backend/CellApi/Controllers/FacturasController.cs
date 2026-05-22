@@ -78,9 +78,22 @@ public class FacturasController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(ApiResponse.Fail(ex.Message)); }
         catch (FileNotFoundException)
         {
-            var bytes = await _pdf.GenerarFacturaPdfBytesAsync(factura);
-            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{nombre}\"");
-            return File(bytes, "application/pdf");
+            try
+            {
+                var bytes2 = await _pdf.GenerarFacturaPdfBytesAsync(factura);
+                Response.Headers.Append("Content-Disposition", $"inline; filename=\"{nombre}\"");
+                return File(bytes2, "application/pdf");
+            }
+            catch (Exception ex2)
+            {
+                return StatusCode(500, $"ERROR PDF factura {id}: {ex2.GetType().Name}: {ex2.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            var msg = $"ERROR PDF factura {id}: {ex.GetType().Name}: {ex.Message}";
+            if (ex.InnerException != null) msg += $"\nCausa: {ex.InnerException.Message}";
+            return StatusCode(500, msg);
         }
     }
 

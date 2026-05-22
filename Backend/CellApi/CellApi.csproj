@@ -19,9 +19,6 @@
     <PackageReference Include="Npgsql" Version="8.0.3" />
     <PackageReference Include="QuestPDF" Version="2024.10.4" />
     <PackageReference Include="SkiaSharp" Version="2.88.9" />
-    <!-- En Linux (Railway): reemplaza libSkiaSharp.so por versión sin deps de sistema (sin libfontconfig) -->
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.9"
-        Condition="'$(RuntimeIdentifier)' == 'linux-x64'" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.7.3" />
     <PackageReference Include="ZXing.Net" Version="0.16.9" />
   </ItemGroup>

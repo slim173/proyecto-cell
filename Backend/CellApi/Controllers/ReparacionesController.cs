@@ -141,25 +141,41 @@ public class ReparacionesController : ControllerBase
     [HttpGet("{id:int}/pdf")]
     public async Task<IActionResult> DescargarPdf(int id, [FromQuery] string? formato = null)
     {
-        var rep = await _service.GetByIdAsync(id);
-        if (rep == null) return NotFound();
-        var fmtValido = formato is "a4" or "ticket_80mm" or "ticket_58mm" ? formato : null;
-        var bytes  = await _pdf.GenerarOrdenReparacionPdfAsync(rep, fmtValido);
-        var nombre = $"Orden_{rep.NumeroOrden.Replace("/", "-")}.pdf";
-        Response.Headers.Append("Content-Disposition", $"inline; filename=\"{nombre}\"");
-        return File(bytes, "application/pdf");
+        try
+        {
+            var rep = await _service.GetByIdAsync(id);
+            if (rep == null) return NotFound();
+            var fmtValido = formato is "a4" or "ticket_80mm" or "ticket_58mm" ? formato : null;
+            var bytes  = await _pdf.GenerarOrdenReparacionPdfAsync(rep, fmtValido);
+            var nombre = $"Orden_{rep.NumeroOrden.Replace("/", "-")}.pdf";
+            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{nombre}\"");
+            return File(bytes, "application/pdf");
+        }
+        catch (Exception ex)
+        {
+            var msg = $"ERROR PDF reparacion {id}: {ex.GetType().Name}: {ex.Message}";
+            if (ex.InnerException != null) msg += $"\nCausa: {ex.InnerException.Message}";
+            return StatusCode(500, msg);
+        }
     }
 
     [AllowAnonymous]
     [HttpGet("{id:int}/etiqueta")]
     public async Task<IActionResult> DescargarEtiqueta(int id)
     {
-        var rep = await _service.GetByIdAsync(id);
-        if (rep == null) return NotFound();
-        var bytes  = await _pdf.GenerarEtiquetaReparacionPdfAsync(rep);
-        var nombre = $"Etiqueta_{rep.NumeroOrden.Replace("/", "-")}.pdf";
-        Response.Headers.Append("Content-Disposition", $"inline; filename=\"{nombre}\"");
-        return File(bytes, "application/pdf");
+        try
+        {
+            var rep = await _service.GetByIdAsync(id);
+            if (rep == null) return NotFound();
+            var bytes  = await _pdf.GenerarEtiquetaReparacionPdfAsync(rep);
+            var nombre = $"Etiqueta_{rep.NumeroOrden.Replace("/", "-")}.pdf";
+            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{nombre}\"");
+            return File(bytes, "application/pdf");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"ERROR etiqueta {id}: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     [HttpPost("{id:int}/enviar-pdf")]
