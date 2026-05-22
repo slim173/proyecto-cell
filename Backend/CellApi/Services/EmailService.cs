@@ -75,6 +75,7 @@ public class EmailService : IEmailService
             message.Body = bodyBuilder.ToMessageBody();
 
             using var smtp = new SmtpClient();
+            smtp.Timeout = 15_000; // 15 s máximo — Railway puede bloquear SMTP saliente
             var socketOptions = smtpSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None;
 
             await smtp.ConnectAsync(smtpHost, smtpPuerto, socketOptions);

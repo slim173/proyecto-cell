@@ -88,8 +88,9 @@ public class ReparacionService : IReparacionService
             <p>Le mantendremos informado sobre el estado de su reparación.</p>
             <p>Un saludo,<br/>CellShop</p>";
 
-        await _emailService.SendAsync(
-            cliente.Email, asunto, cuerpo,
+        // Fire-and-forget: no bloquear el registro esperando SMTP
+        _ = _emailService.SendAsync(
+            cliente.Email ?? "", asunto, cuerpo,
             "recepcion_reparacion", "reparacion", id);
 
         var resultado = await _repo.GetByIdAsync(id);
@@ -148,8 +149,9 @@ public class ReparacionService : IReparacionService
         await _repo.UpdateEstadoAsync(rep);
 
         var cliente = await _clienteRepo.GetByIdAsync(rep.ClienteId);
+        // Fire-and-forget: no bloquear el cambio de estado esperando SMTP
         if (cliente != null)
-            await EnviarEmailCambioEstado(rep, cliente, dto.Estado);
+            _ = EnviarEmailCambioEstado(rep, cliente, dto.Estado);
 
         // Cuando se entrega: calcular totales con IVA, crear factura y PDF
         if (dto.Estado == "entregado" && dto.PrecioFinal.HasValue)
@@ -339,6 +341,7 @@ public class ReparacionService : IReparacionService
                 return; // Sin email para otros estados
         }
 
+        if (string.IsNullOrWhiteSpace(cliente.Email)) return;
         await _emailService.SendAsync(
             cliente.Email, asunto, cuerpo,
             $"reparacion_{estado}", "reparacion", rep.Id);
