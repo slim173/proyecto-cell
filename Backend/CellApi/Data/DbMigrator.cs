@@ -92,6 +92,7 @@ public static class DbMigrator
             CREATE INDEX IF NOT EXISTS idx_rep_imagenes_reparacion ON reparacion_imagenes (reparacion_id);
 
             ALTER TABLE reparaciones ADD COLUMN IF NOT EXISTS solucion TEXT;
+            ALTER TABLE reparaciones ADD COLUMN IF NOT EXISTS recordatorio_enviado BOOLEAN NOT NULL DEFAULT false;
         ");
 
         await SyncSmtpConfigAsync(conn);
