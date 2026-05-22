@@ -153,13 +153,13 @@ public class ReparacionService : IReparacionService
         if (cliente != null)
             _ = EnviarEmailCambioEstado(rep, cliente, dto.Estado);
 
-        // Cuando se entrega: calcular totales con IVA, crear factura y PDF
+        // Cuando se entrega: PrecioFinal ES el PVP (IVA ya incluido)
         if (dto.Estado == "entregado" && dto.PrecioFinal.HasValue)
         {
             const decimal pct = 21m;
-            var baseImp   = Math.Round(dto.PrecioFinal.Value, 2);
-            var iva       = Math.Round(baseImp * pct / 100, 2);
-            var total     = baseImp + iva;
+            var total   = Math.Round(dto.PrecioFinal.Value, 2);
+            var baseImp = Math.Round(total / (1m + pct / 100m), 2);
+            var iva     = Math.Round(total - baseImp, 2);
 
             await _repo.ActualizarTotalesAsync(id, baseImp, pct, iva, total, dto.PrecioFinal.Value);
 
@@ -195,8 +195,8 @@ public class ReparacionService : IReparacionService
                 {
                     Descripcion    = $"Reparación {rep.Dispositivo} {rep.Marca} {rep.Modelo}",
                     Cantidad       = 1,
-                    PrecioUnitario = dto.PrecioFinal.Value,
-                    Subtotal       = dto.PrecioFinal.Value
+                    PrecioUnitario = baseImp,   // base s/IVA; el PDF muestra PVP = base × ivaFactor
+                    Subtotal       = baseImp
                 });
 
             var facturaDto = _mapper.Map<FacturaDto>(factura);
