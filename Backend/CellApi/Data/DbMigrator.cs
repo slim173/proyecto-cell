@@ -80,6 +80,18 @@ public static class DbMigrator
                 RETURN 'S-' || v_anio::TEXT || LPAD(v_secuencia::TEXT, 4, '0');
             END;
             $$ LANGUAGE plpgsql;
+
+            CREATE TABLE IF NOT EXISTS reparacion_imagenes (
+                id             INTEGER      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                reparacion_id  INTEGER      NOT NULL REFERENCES reparaciones(id) ON DELETE CASCADE,
+                ruta_imagen    VARCHAR(500) NOT NULL,
+                nombre_archivo VARCHAR(300),
+                fecha          TIMESTAMP    NOT NULL DEFAULT NOW()
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_rep_imagenes_reparacion ON reparacion_imagenes (reparacion_id);
+
+            ALTER TABLE reparaciones ADD COLUMN IF NOT EXISTS solucion TEXT;
         ");
 
         await SyncSmtpConfigAsync(conn);
