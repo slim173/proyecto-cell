@@ -164,7 +164,9 @@ if (app.Environment.IsDevelopment())
 }
 
 // ── Migraciones automáticas de BD ───────────────────────────────
-await DbMigrator.RunAsync(app.Services.GetRequiredService<DbConnectionFactory>());
+await DbMigrator.RunAsync(
+    app.Services.GetRequiredService<DbConnectionFactory>(),
+    app.Services.GetRequiredService<ILogger<Program>>());
 
 app.UseCors("AllowAll");
 
