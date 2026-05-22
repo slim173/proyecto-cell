@@ -22,14 +22,14 @@
                 <i class="fas fa-edit me-1"></i>@(_editando ? "Cancelar edición" : "Editar orden")
             </button>
         }
-        <button class="btn btn-outline-danger btn-sm" title="Imprimir / ver PDF de la orden"
-                @onclick='() => VerPdf(RepPdfUrl(), "Orden — " + (_rep?.NumeroOrden ?? ""))'>
+        <a href="@RepPdfUrl()" target="_blank" rel="noopener"
+           class="btn btn-outline-danger btn-sm" title="Imprimir / ver PDF de la orden">
             <i class="fas fa-print me-1"></i>Imprimir
-        </button>
-        <button class="btn btn-outline-success btn-sm" title="Etiqueta con código QR"
-                @onclick='() => VerPdf(_apiBase + $"/api/reparaciones/{Id}/etiqueta", "Etiqueta — " + (_rep?.NumeroOrden ?? ""))'>
+        </a>
+        <a href="@(_apiBase + $"/api/reparaciones/{Id}/etiqueta")" target="_blank" rel="noopener"
+           class="btn btn-outline-success btn-sm" title="Etiqueta con código QR">
             <i class="fas fa-qrcode me-1"></i>Etiqueta QR
-        </button>
+        </a>
         <EnviarEmailBtn EmailPorDefecto="@(_rep?.ClienteEmail ?? string.Empty)"
                         Enviando="_enviandoEmail"
                         OnEnviar="EnviarPdf" />
@@ -498,39 +498,23 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-primary w-100"
-                            @onclick='() => VerPdf(RepPdfUrl(), "Orden — " + _rep.NumeroOrden)'>
-                        <i class="fas fa-eye me-2"></i>Previsualizar orden
-                    </button>
+                    <a href="@RepPdfUrl()" target="_blank" rel="noopener"
+                       class="btn btn-primary w-100">
+                        <i class="fas fa-eye me-2"></i>Ver / imprimir orden
+                    </a>
 
                     @if (_facturaId.HasValue)
                     {
-                        <button class="btn btn-success w-100"
-                                @onclick='() => VerPdf(FacturaPdfUrl(), "Factura — " + _rep.NumeroOrden)'>
-                            <i class="fas fa-receipt me-2"></i>Previsualizar factura
-                        </button>
+                        <a href="@FacturaPdfUrl()" target="_blank" rel="noopener"
+                           class="btn btn-success w-100">
+                            <i class="fas fa-receipt me-2"></i>Ver / imprimir factura
+                        </a>
                     }
 
-                    <button class="btn btn-outline-secondary w-100"
-                            @onclick='() => VerPdf(_apiBase + $"/api/reparaciones/{Id}/etiqueta", "Etiqueta — " + _rep.NumeroOrden)'>
+                    <a href="@(_apiBase + $"/api/reparaciones/{Id}/etiqueta")" target="_blank" rel="noopener"
+                       class="btn btn-outline-secondary w-100">
                         <i class="fas fa-qrcode me-2"></i>Etiqueta QR (90×55 mm)
-                    </button>
-
-                    <hr class="my-1" />
-
-                    <div class="d-flex gap-2">
-                        <a href="@RepPdfUrl()" target="_blank"
-                           class="btn btn-outline-secondary btn-sm flex-fill">
-                            <i class="fas fa-download me-1"></i>Descargar orden
-                        </a>
-                        @if (_facturaId.HasValue)
-                        {
-                            <a href="@FacturaPdfUrl()" target="_blank"
-                               class="btn btn-outline-success btn-sm flex-fill">
-                                <i class="fas fa-download me-1"></i>Descargar factura
-                            </a>
-                        }
-                    </div>
+                    </a>
 
                     <EnviarEmailBtn EmailPorDefecto="@(_rep.ClienteEmail ?? string.Empty)"
                                     Enviando="_enviandoEmail"
