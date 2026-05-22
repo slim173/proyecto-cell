@@ -21,11 +21,12 @@ Offline/
 Instalador/dist/
 Instalador/output/
 
-# ── Archivos generados en runtime ─────────────────────────
+# ── Archivos generados en runtime (PDFs e imágenes de usuario) ──
 Frontend/CellApp/wwwroot/facturas/
 Frontend/CellApp/wwwroot/reparaciones/
-Frontend/CellApp/wwwroot/logos/
-Backend/CellApi/wwwroot/
+Backend/CellApi/wwwroot/facturas/
+Backend/CellApi/wwwroot/reparaciones/
+# logos/ NO se excluye: el logo de empresa debe ir en la imagen Docker
 
 # ── Logs ──────────────────────────────────────────────────
 logs/

@@ -127,35 +127,60 @@ public static class DbMigrator
         await SyncEnvVarsAsync(conn, logger);
     }
 
-    // Inserta claves de empresa/config si todavía no existen en BD
+    // Sincroniza configuración completa de la empresa en BD
     private static async Task SeedEmpresaConfigAsync(System.Data.IDbConnection conn, ILogger? logger)
     {
-        var defaults = new (string clave, string valor, string desc)[]
+        var clausulaRep =
+            "*Conforme a los arts. 17 y 18 TRLGDCU (Ley 1/2007) y art. 54 Código de Comercio:\n" +
+            "1. Presupuesto previo obligatorio. La aceptación de la reparación implica vinculación al mismo.\n" +
+            "2. Si no se autoriza la reparación o se rechaza tras inicio, se adeudarán 15 € (IVA no incluido) " +
+            "por diagnóstico y manipulación (art. 7.2 TRLGDCU).\n" +
+            "3. Depósito máximo 30 días naturales desde el aviso de finalización. Pasado ese plazo, el terminal " +
+            "se considerará abandonado (art. 616 Código Civil en relación con el art. 54 Código de Comercio), " +
+            "pudiendo ser vendido o reciclado sin derecho a reclamación posterior.";
+
+        var datos = new (string clave, string valor, string desc)[]
         {
-            ("empresa_nombre",    "CellShop",    "Nombre comercial"),
-            ("empresa_cif",       "",            "CIF / NIF"),
-            ("empresa_telefono",  "",            "Teléfono de contacto"),
-            ("empresa_direccion", "",            "Dirección"),
-            ("empresa_ciudad",    "",            "Ciudad"),
-            ("empresa_cp",        "",            "Código postal"),
-            ("empresa_email",     "",            "Email de empresa"),
-            ("empresa_web",       "",            "Sitio web"),
-            ("empresa_logo",      "",            "Logo (ruta relativa a wwwroot)"),
-            ("iva_porcentaje",    "21",          "IVA por defecto (%)"),
-            ("ticket_formato",    "a4",          "Formato de impresión (a4/ticket_80mm/ticket_58mm)"),
-            ("ticket_mostrar_qr", "true",        "Mostrar QR en tickets"),
-            ("ticket_clausula_reparacion", "",   "Cláusula de reparación en tickets"),
-            ("ticket_clausula_recogida",   "",   "Condiciones de recogida en tickets"),
-            ("factura_pie_texto", "",            "Pie de factura"),
-            ("empresa_url_publica", "",          "URL pública (para QR en PDFs)"),
+            ("empresa_nombre",    "DOCTOR MOVIL",                                   "Nombre comercial"),
+            ("empresa_cif",       "54801248E",                                       "CIF / NIF"),
+            ("empresa_telefono",  "624568022",                                       "Teléfono de contacto"),
+            ("empresa_direccion", "PLAZA CHICA 10",                                  "Dirección"),
+            ("empresa_ciudad",    "SAN JAVIER",                                      "Ciudad"),
+            ("empresa_cp",        "30730",                                            "Código postal"),
+            ("empresa_email",     "doctormovil20@gmail.com",                         "Email de empresa"),
+            ("empresa_web",       "https://doctormovilsj.com/",                      "Sitio web"),
+            ("empresa_logo",      "logos/logo.jpeg",                                 "Logo (ruta relativa a wwwroot)"),
+            ("factura_pie_texto", "Gracias por confiar en doctor movil Reparaciones 624568022", "Pie de factura"),
+            ("iva_porcentaje",    "21",                                               "IVA por defecto (%)"),
+            ("ticket_formato",    "a4",                                               "Formato de impresión"),
+            ("ticket_mostrar_qr", "true",                                             "Mostrar QR en tickets"),
+            ("ticket_clausula_reparacion", clausulaRep,                              "Cláusula de reparación"),
+            ("ticket_clausula_recogida",   "",                                        "Condiciones de recogida"),
+            ("empresa_url_publica",        "",                                        "URL pública para QR"),
+            ("smtp_from_name",    "doctor movil",                                     "Nombre remitente email"),
+            ("smtp_from_email",   "doctormovil20@gmail.com",                         "Email remitente"),
+            ("smtp_host",         "smtp.gmail.com",                                   "Servidor SMTP"),
+            ("smtp_puerto",       "587",                                               "Puerto SMTP"),
+            ("smtp_ssl",          "true",                                              "Usar SSL/TLS"),
+            ("wa_msg_entrada",    "¡Hola {nombre}! Hemos recibido tu {dispositivo} en DOCTOR MOVIL. Orden #{orden}. Te avisamos en cuanto esté listo. ¡Gracias!", "WA — entrada registrada"),
+            ("wa_msg_listo",      "¡Hola {nombre}! Tu {dispositivo} ya está listo para recoger. Orden #{orden} · Total: {total}€. Pasa cuando quieras por DOCTOR MOVIL.", "WA — listo para recoger"),
+            ("wa_msg_recordatorio","Hola {nombre}, te recordamos que tienes el {dispositivo} (Orden #{orden}) pendiente de recoger en DOCTOR MOVIL. ¿Cuándo puedes pasarte?", "WA — recordatorio"),
+            ("whatsapp_activo",   "false",                                            "Activar WhatsApp"),
+            ("recordatorio_activo","true",                                            "Activar recordatorios"),
+            ("recordatorio_dias", "3",                                                "Días para recordatorio"),
+            ("caja_activa",       "true",                                             "Módulo caja/TPV activo"),
+            ("garantia_meses_defecto","12",                                           "Meses garantía por defecto"),
         };
 
+        // ON CONFLICT DO UPDATE para que también actualice valores vacíos ya insertados
         const string sql = @"
             INSERT INTO configuracion (clave, valor, descripcion)
             VALUES (@Clave, @Valor, @Desc)
-            ON CONFLICT (clave) DO NOTHING";
+            ON CONFLICT (clave) DO UPDATE
+                SET valor       = EXCLUDED.valor,
+                    descripcion = EXCLUDED.descripcion";
 
-        foreach (var (clave, valor, desc) in defaults)
+        foreach (var (clave, valor, desc) in datos)
         {
             try
             {
@@ -167,7 +192,7 @@ public static class DbMigrator
             }
         }
 
-        logger?.LogInformation("[DbMigrator] Seed configuracion OK");
+        logger?.LogInformation("[DbMigrator] Seed configuracion DOCTOR MOVIL OK");
     }
 
     // Sobreescribe claves de configuracion con variables de entorno de Railway/Docker
