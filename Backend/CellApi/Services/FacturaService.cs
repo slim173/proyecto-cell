@@ -38,22 +38,15 @@ public class FacturaService : IFacturaService
         return factura == null ? null : _mapper.Map<FacturaDto>(factura);
     }
 
-    public async Task<byte[]> DescargarPdfAsync(int id)
+    public async Task<byte[]> DescargarPdfAsync(int id, string? formato = null)
     {
         var factura = await _repo.GetByIdAsync(id)
             ?? throw new KeyNotFoundException($"Factura {id} no encontrada.");
 
-        // 1. Si el archivo ya existe en disco, devolverlo directamente
-        if (!string.IsNullOrEmpty(factura.PdfPath) && File.Exists(factura.PdfPath))
-            return await File.ReadAllBytesAsync(factura.PdfPath);
-
-        // 2. El archivo no existe: regenerar on-the-fly desde los datos fuente
-        var facturaDto          = _mapper.Map<FacturaDto>(factura);
-        facturaDto.Lineas       = await ObtenerLineasAsync(factura);
-
-        var pdfPath = await _pdfService.GenerarFacturaPdfAsync(facturaDto);
-        await _repo.UpdatePdfPathAsync(id, pdfPath);
-        return await File.ReadAllBytesAsync(pdfPath);
+        // Regenerar siempre desde los datos de BD con el layout actual
+        var facturaDto    = _mapper.Map<FacturaDto>(factura);
+        facturaDto.Lineas = await ObtenerLineasAsync(factura);
+        return await _pdfService.GenerarFacturaPdfBytesAsync(facturaDto, formato);
     }
 
     public async Task AnularAsync(int id, string motivo)

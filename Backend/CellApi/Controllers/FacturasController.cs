@@ -57,38 +57,18 @@ public class FacturasController : ControllerBase
     [HttpGet("{id:int}/pdf")]
     public async Task<IActionResult> DescargarPdf(int id, [FromQuery] string? formato = null)
     {
-        var factura = await _service.GetByIdAsync(id);
-        if (factura == null) return NotFound(ApiResponse.Fail($"Factura {id} no encontrada."));
-        var nombre = $"Factura_{factura.NumeroFactura.Replace("/", "-")}.pdf";
         try
         {
-            byte[] bytes;
+            var factura = await _service.GetByIdAsync(id);
+            if (factura == null) return NotFound(ApiResponse.Fail($"Factura {id} no encontrada."));
+
             var fmtValido = formato is "a4" or "ticket_80mm" or "ticket_58mm" ? formato : null;
-            if (fmtValido != null)
-            {
-                bytes = await _pdf.GenerarFacturaPdfBytesAsync(factura, fmtValido);
-            }
-            else
-            {
-                bytes = await _service.DescargarPdfAsync(id);
-            }
+            var bytes  = await _service.DescargarPdfAsync(id, fmtValido);
+            var nombre = $"Factura_{factura.NumeroFactura.Replace("/", "-")}.pdf";
             Response.Headers.Append("Content-Disposition", $"inline; filename=\"{nombre}\"");
             return File(bytes, "application/pdf");
         }
         catch (KeyNotFoundException ex) { return NotFound(ApiResponse.Fail(ex.Message)); }
-        catch (FileNotFoundException)
-        {
-            try
-            {
-                var bytes2 = await _pdf.GenerarFacturaPdfBytesAsync(factura);
-                Response.Headers.Append("Content-Disposition", $"inline; filename=\"{nombre}\"");
-                return File(bytes2, "application/pdf");
-            }
-            catch (Exception ex2)
-            {
-                return StatusCode(500, $"ERROR PDF factura {id}: {ex2.GetType().Name}: {ex2.Message}");
-            }
-        }
         catch (Exception ex)
         {
             var msg = $"ERROR PDF factura {id}: {ex.GetType().Name}: {ex.Message}";
