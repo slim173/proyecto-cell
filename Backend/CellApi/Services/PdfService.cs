@@ -316,8 +316,9 @@ public class PdfService : IPdfService
 
     public async Task<byte[]> GenerarEtiquetaReparacionPdfAsync(ReparacionDto rep)
     {
-        var falla = rep.DescripcionFalla.Length > 90
-            ? rep.DescripcionFalla[..87] + "..."
+        // Limitar falla a ~55 chars para evitar 3 líneas con la fuente más grande
+        var falla = rep.DescripcionFalla.Length > 55
+            ? rep.DescripcionFalla[..52] + "..."
             : rep.DescripcionFalla;
 
         return Document.Create(container =>
@@ -325,33 +326,33 @@ public class PdfService : IPdfService
             container.Page(page =>
             {
                 page.Size(90, 55, Unit.Millimetre);
-                page.Margin(3, Unit.Millimetre);
+                page.Margin(2.5f, Unit.Millimetre);   // 2.5 mm → área útil 85×50 mm
                 page.DefaultTextStyle(x => x.Bold());
 
                 page.Content().Column(col =>
                 {
                     col.Item().Text(rep.NumeroOrden)
-                        .Bold().FontSize(20).FontColor(Colors.Black);
+                        .Bold().FontSize(24).FontColor(Colors.Black);
 
-                    col.Item().PaddingTop(2).Text(rep.ClienteNombreCompleto ?? "")
-                        .Bold().FontSize(13).FontColor(Colors.Blue.Darken4);
+                    col.Item().PaddingTop(1).Text(rep.ClienteNombreCompleto ?? "")
+                        .Bold().FontSize(16).FontColor(Colors.Blue.Darken4);
 
                     if (!string.IsNullOrEmpty(rep.ClienteTelefono))
                         col.Item().PaddingTop(1).Text(rep.ClienteTelefono)
-                            .Bold().FontSize(16).FontColor(Colors.Black);
+                            .Bold().FontSize(20).FontColor(Colors.Black);
 
                     col.Item().PaddingTop(1)
                         .Text(rep.FechaRecepcion.ToString("dd/MM/yyyy"))
-                        .Bold().FontSize(9).FontColor(Colors.Grey.Darken4);
+                        .Bold().FontSize(11).FontColor(Colors.Grey.Darken4);
 
                     var precio = rep.PrecioFinal ?? rep.PrecioEstimado;
                     if (precio.HasValue)
                         col.Item().PaddingTop(1)
                             .Text($"{precio.Value:N2} €")
-                            .Bold().FontSize(13).FontColor(Colors.Green.Darken4);
+                            .Bold().FontSize(16).FontColor(Colors.Green.Darken4);
 
-                    col.Item().PaddingTop(2).Text(falla)
-                        .Bold().FontSize(11).FontColor(Colors.Black);
+                    col.Item().PaddingTop(1).Text(falla)
+                        .Bold().FontSize(13).FontColor(Colors.Black);
                 });
             });
         }).GeneratePdf();
