@@ -302,15 +302,13 @@ public class PdfService : IPdfService
     }
 
     // ════════════════════════════════════════════════════════════════
-    // ETIQUETA REPARACIÓN (QR 90×55 mm)
+    // ETIQUETA REPARACIÓN (90×55 mm — sin QR)
     // ════════════════════════════════════════════════════════════════
 
     public async Task<byte[]> GenerarEtiquetaReparacionPdfAsync(ReparacionDto rep)
     {
-        var qrPng = GenerarQrPng(rep.NumeroOrden, 240);
-
-        var falla = rep.DescripcionFalla.Length > 55
-            ? rep.DescripcionFalla[..52] + "..."
+        var falla = rep.DescripcionFalla.Length > 90
+            ? rep.DescripcionFalla[..87] + "..."
             : rep.DescripcionFalla;
 
         return Document.Create(container =>
@@ -319,39 +317,32 @@ public class PdfService : IPdfService
             {
                 page.Size(90, 55, Unit.Millimetre);
                 page.Margin(3, Unit.Millimetre);
-                page.DefaultTextStyle(x => x.FontFamily("Arial").Bold());
+                page.DefaultTextStyle(x => x.Bold());
 
-                page.Content().Row(row =>
+                page.Content().Column(col =>
                 {
-                    row.RelativeItem().Column(col =>
-                    {
-                        col.Item().Text(rep.NumeroOrden)
-                            .Bold().FontSize(18).FontColor(Colors.Black);
+                    col.Item().Text(rep.NumeroOrden)
+                        .Bold().FontSize(20).FontColor(Colors.Black);
 
-                        col.Item().PaddingTop(3).Text(rep.ClienteNombreCompleto ?? "")
-                            .Bold().FontSize(11).FontColor(Colors.Blue.Darken2);
+                    col.Item().PaddingTop(2).Text(rep.ClienteNombreCompleto ?? "")
+                        .Bold().FontSize(13).FontColor(Colors.Blue.Darken2);
 
-                        if (!string.IsNullOrEmpty(rep.ClienteTelefono))
-                            col.Item().PaddingTop(2).Text(rep.ClienteTelefono)
-                                .Bold().FontSize(18).FontColor(Colors.Grey.Darken2);
+                    if (!string.IsNullOrEmpty(rep.ClienteTelefono))
+                        col.Item().PaddingTop(1).Text(rep.ClienteTelefono)
+                            .Bold().FontSize(16).FontColor(Colors.Grey.Darken2);
 
-                        col.Item().PaddingTop(2)
-                            .Text(rep.FechaRecepcion.ToString("dd/MM/yyyy"))
-                            .Bold().FontSize(10).FontColor(Colors.Grey.Darken2);
+                    col.Item().PaddingTop(1)
+                        .Text(rep.FechaRecepcion.ToString("dd/MM/yyyy"))
+                        .Bold().FontSize(9).FontColor(Colors.Grey.Darken2);
 
-                        var precio = rep.PrecioFinal ?? rep.PrecioEstimado;
-                        if (precio.HasValue)
-                            col.Item().PaddingTop(2)
-                                .Text($"{precio.Value:N2} €")
-                                .Bold().FontSize(12).FontColor(Colors.Green.Darken2);
+                    var precio = rep.PrecioFinal ?? rep.PrecioEstimado;
+                    if (precio.HasValue)
+                        col.Item().PaddingTop(1)
+                            .Text($"{precio.Value:N2} €")
+                            .Bold().FontSize(13).FontColor(Colors.Green.Darken2);
 
-                        col.Item().PaddingTop(3).Text(falla)
-                            .Bold().FontSize(18).FontColor(Colors.Grey.Darken2);
-                    });
-
-                    row.ConstantItem(27, Unit.Millimetre)
-                       .AlignBottom().AlignRight()
-                       .Image(qrPng);
+                    col.Item().PaddingTop(2).Text(falla)
+                        .Bold().FontSize(11).FontColor(Colors.Grey.Darken2);
                 });
             });
         }).GeneratePdf();
