@@ -213,9 +213,10 @@ public static class DbMigrator
             ["empresa_cif"]       = Environment.GetEnvironmentVariable("EMPRESA_CIF"),
             ["empresa_telefono"]  = Environment.GetEnvironmentVariable("EMPRESA_TELEFONO"),
             ["empresa_direccion"] = Environment.GetEnvironmentVariable("EMPRESA_DIRECCION"),
-            ["empresa_ciudad"]    = Environment.GetEnvironmentVariable("EMPRESA_CIUDAD"),
-            ["empresa_cp"]        = Environment.GetEnvironmentVariable("EMPRESA_CP"),
-            ["empresa_email"]     = Environment.GetEnvironmentVariable("EMPRESA_EMAIL"),
+            ["empresa_ciudad"]      = Environment.GetEnvironmentVariable("EMPRESA_CIUDAD"),
+            ["empresa_cp"]          = Environment.GetEnvironmentVariable("EMPRESA_CP"),
+            ["empresa_email"]       = Environment.GetEnvironmentVariable("EMPRESA_EMAIL"),
+            ["empresa_url_publica"] = Environment.GetEnvironmentVariable("EMPRESA_URL_PUBLICA"),
         };
 
         const string sql = "UPDATE configuracion SET valor = @Valor WHERE clave = @Clave";
