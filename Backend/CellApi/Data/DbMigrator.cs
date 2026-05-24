@@ -165,8 +165,11 @@ public static class DbMigrator
             ("wa_msg_entrada",    "¡Hola {nombre}! Hemos recibido tu {dispositivo} en DOCTOR MOVIL. Orden #{orden}. Te avisamos en cuanto esté listo. ¡Gracias!", "WA — entrada registrada"),
             ("wa_msg_listo",      "¡Hola {nombre}! Tu {dispositivo} ya está listo para recoger. Orden #{orden} · Total: {total}€. Pasa cuando quieras por DOCTOR MOVIL.", "WA — listo para recoger"),
             ("wa_msg_recordatorio","Hola {nombre}, te recordamos que tienes el {dispositivo} (Orden #{orden}) pendiente de recoger en DOCTOR MOVIL. ¿Cuándo puedes pasarte?", "WA — recordatorio"),
-            ("whatsapp_activo",   "false",                                            "Activar WhatsApp"),
-            ("recordatorio_activo","true",                                            "Activar recordatorios"),
+            ("whatsapp_activo",      "false",                 "Activar WhatsApp"),
+            ("twilio_account_sid",   "",                     "Twilio Account SID"),
+            ("twilio_whatsapp_from", "whatsapp:+14155238886","Número remitente WhatsApp (sandbox)"),
+            ("twilio_content_sid",   "",                     "ContentSid plantilla WhatsApp"),
+            ("recordatorio_activo",  "true",                 "Activar recordatorios"),
             ("recordatorio_dias", "3",                                                "Días para recordatorio"),
             ("caja_activa",       "true",                                             "Módulo caja/TPV activo"),
             ("garantia_meses_defecto","12",                                           "Meses garantía por defecto"),
@@ -216,7 +219,12 @@ public static class DbMigrator
             ["empresa_ciudad"]      = Environment.GetEnvironmentVariable("EMPRESA_CIUDAD"),
             ["empresa_cp"]          = Environment.GetEnvironmentVariable("EMPRESA_CP"),
             ["empresa_email"]       = Environment.GetEnvironmentVariable("EMPRESA_EMAIL"),
-            ["empresa_url_publica"] = Environment.GetEnvironmentVariable("EMPRESA_URL_PUBLICA"),
+            ["empresa_url_publica"]  = Environment.GetEnvironmentVariable("EMPRESA_URL_PUBLICA"),
+            // Twilio — todas las credenciales solo via variable de entorno o UI Empresa
+            ["twilio_account_sid"]  = Environment.GetEnvironmentVariable("TWILIO_ACCOUNT_SID"),
+            ["twilio_auth_token"]   = Environment.GetEnvironmentVariable("TWILIO_AUTH_TOKEN"),
+            ["twilio_whatsapp_from"]= Environment.GetEnvironmentVariable("TWILIO_WHATSAPP_FROM"),
+            ["twilio_content_sid"]  = Environment.GetEnvironmentVariable("TWILIO_CONTENT_SID"),
         };
 
         const string sql = "UPDATE configuracion SET valor = @Valor WHERE clave = @Clave";

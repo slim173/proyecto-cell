@@ -419,6 +419,14 @@
                            placeholder="whatsapp:+14155238886" />
                     <small class="text-muted">Formato: whatsapp:+[número del sandbox]</small>
                 </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold">ContentSid (plantilla aprobada)</label>
+                    <input class="form-control" @bind="_dto.TwilioContentSid"
+                           placeholder="HXb5b62575e6e4ff6129ad7c8efe1f983e" />
+                    <small class="text-muted">
+                        ID de la plantilla de Twilio Content API. Si está vacío se envía texto libre (solo funciona en sandbox).
+                    </small>
+                </div>
             </div>
 
             <hr class="my-4" />
@@ -556,6 +564,7 @@
                     WhatsappActivo    = _empresaOriginal.WhatsappActivo,
                     TwilioAccountSid  = _empresaOriginal.TwilioAccountSid,
                     TwilioWhatsappFrom= _empresaOriginal.TwilioWhatsappFrom,
+                    TwilioContentSid  = _empresaOriginal.TwilioContentSid,
                     RecordatorioActivo= _empresaOriginal.RecordatorioActivo,
                     RecordatorioDias  = _empresaOriginal.RecordatorioDias,
                     TicketFormato      = _empresaOriginal.TicketFormato,

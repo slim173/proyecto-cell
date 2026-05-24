@@ -31,7 +31,7 @@ public class ConfiguracionController : ControllerBase
         "smtp_host", "smtp_puerto", "smtp_ssl", "smtp_usuario",
         "smtp_from_name", "smtp_from_email",
         "wa_msg_entrada", "wa_msg_listo", "wa_msg_recordatorio",
-        "whatsapp_activo", "twilio_account_sid", "twilio_whatsapp_from",
+        "whatsapp_activo", "twilio_account_sid", "twilio_whatsapp_from", "twilio_content_sid",
         "recordatorio_activo", "recordatorio_dias",
         "ticket_formato", "ticket_clausula_reparacion", "ticket_clausula_recogida", "ticket_mostrar_qr",
         "empresa_logo",
@@ -73,6 +73,7 @@ public class ConfiguracionController : ControllerBase
             ["whatsapp_activo"]           = dto.WhatsappActivo.ToString().ToLower(),
             ["twilio_account_sid"]        = dto.TwilioAccountSid     ?? "",
             ["twilio_whatsapp_from"]      = dto.TwilioWhatsappFrom   ?? "",
+            ["twilio_content_sid"]        = dto.TwilioContentSid     ?? "",
             ["recordatorio_activo"]       = dto.RecordatorioActivo.ToString().ToLower(),
             ["recordatorio_dias"]         = dto.RecordatorioDias.ToString(),
             ["ticket_formato"]            = dto.TicketFormato        ?? "a4",
@@ -212,9 +213,10 @@ public class ConfiguracionController : ControllerBase
             WaMsgListo        = cfg.GetValueOrDefault("wa_msg_listo",        "¡Hola {nombre}! ✅ Tu {dispositivo} ya está listo. Pasa a recogerlo cuando quieras. Orden #{orden} · Total: {total}€"),
             WaMsgRecordatorio = cfg.GetValueOrDefault("wa_msg_recordatorio", "Hola {nombre}, te recordamos que tienes el {dispositivo} (Orden #{orden}) pendiente de recoger en {tienda}. 📱"),
             WhatsappActivo       = cfg.GetValueOrDefault("whatsapp_activo","false").Equals("true", StringComparison.OrdinalIgnoreCase),
-            TwilioAccountSid    = cfg.GetValueOrDefault("twilio_account_sid", ""),
+            TwilioAccountSid    = cfg.GetValueOrDefault("twilio_account_sid",   ""),
             TieneTwilioAuthToken= cfg.ContainsKey("twilio_auth_token") && !string.IsNullOrWhiteSpace(cfg["twilio_auth_token"]),
             TwilioWhatsappFrom  = cfg.GetValueOrDefault("twilio_whatsapp_from", ""),
+            TwilioContentSid    = cfg.GetValueOrDefault("twilio_content_sid",   ""),
             RecordatorioActivo  = cfg.GetValueOrDefault("recordatorio_activo","false").Equals("true", StringComparison.OrdinalIgnoreCase),
             RecordatorioDias    = int.TryParse(cfg.GetValueOrDefault("recordatorio_dias","3"), out var rd) ? rd : 3,
             TicketFormato      = cfg.GetValueOrDefault("ticket_formato",               "a4"),
@@ -251,10 +253,11 @@ public class EmpresaDto
     public string? WaMsgListo        { get; set; }
     public string? WaMsgRecordatorio { get; set; }
     public bool    WhatsappActivo       { get; set; }
-    public string? TwilioAccountSid    { get; set; }
+    public string? TwilioAccountSid     { get; set; }
     public bool    TieneTwilioAuthToken { get; set; }
-    public string? TwilioWhatsappFrom  { get; set; }
-    public bool    RecordatorioActivo  { get; set; }
+    public string? TwilioWhatsappFrom   { get; set; }
+    public string? TwilioContentSid     { get; set; }
+    public bool    RecordatorioActivo   { get; set; }
     public int     RecordatorioDias    { get; set; } = 3;
     public string  TicketFormato      { get; set; } = "a4";
     public string? ClausulaReparacion { get; set; }
@@ -290,6 +293,7 @@ public class UpdateEmpresaDto
     public string? TwilioAccountSid    { get; set; }
     public string? TwilioAuthToken     { get; set; }
     public string? TwilioWhatsappFrom  { get; set; }
+    public string? TwilioContentSid    { get; set; }
     public bool    RecordatorioActivo  { get; set; }
     public int     RecordatorioDias    { get; set; } = 3;
     public string  TicketFormato      { get; set; } = "a4";

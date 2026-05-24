@@ -86,11 +86,12 @@ public class EmpresaDto
     public string? WaMsgListo        { get; set; }
     public string? WaMsgRecordatorio { get; set; }
     // WhatsApp API / Twilio
-    public bool    WhatsappActivo       { get; set; }
-    public string? TwilioAccountSid    { get; set; }
-    public bool    TieneTwilioAuthToken { get; set; }
-    public string? TwilioWhatsappFrom  { get; set; }
-    public bool    RecordatorioActivo  { get; set; }
+    public bool    WhatsappActivo        { get; set; }
+    public string? TwilioAccountSid     { get; set; }
+    public bool    TieneTwilioAuthToken  { get; set; }
+    public string? TwilioWhatsappFrom    { get; set; }
+    public string? TwilioContentSid      { get; set; }
+    public bool    RecordatorioActivo    { get; set; }
     public int     RecordatorioDias    { get; set; } = 3;
     // Print settings
     public string  TicketFormato      { get; set; } = "a4";
@@ -124,11 +125,12 @@ public class UpdateEmpresaDto
     public string? WaMsgListo        { get; set; }
     public string? WaMsgRecordatorio { get; set; }
     // WhatsApp API / Twilio
-    public bool    WhatsappActivo       { get; set; }
-    public string? TwilioAccountSid    { get; set; }
-    public string? TwilioAuthToken     { get; set; }
-    public string? TwilioWhatsappFrom  { get; set; }
-    public bool    RecordatorioActivo  { get; set; }
+    public bool    WhatsappActivo        { get; set; }
+    public string? TwilioAccountSid     { get; set; }
+    public string? TwilioAuthToken      { get; set; }
+    public string? TwilioWhatsappFrom   { get; set; }
+    public string? TwilioContentSid     { get; set; }
+    public bool    RecordatorioActivo   { get; set; }
     public int     RecordatorioDias    { get; set; } = 3;
     // Print settings
     public string  TicketFormato      { get; set; } = "a4";
