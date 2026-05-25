@@ -107,6 +107,9 @@ public static class DbMigrator
 
             ("col_reparaciones_recordatorio",
                 "ALTER TABLE reparaciones ADD COLUMN IF NOT EXISTS recordatorio_enviado BOOLEAN NOT NULL DEFAULT false"),
+
+            ("col_clientes_email_nullable",
+                "ALTER TABLE clientes ALTER COLUMN email DROP NOT NULL"),
         };
 
         foreach (var (name, sql) in steps)

@@ -8,5 +8,5 @@ public interface IClienteRepository
     Task<Cliente?> GetByIdAsync(int id);
     Task<int> CreateAsync(Cliente cliente);
     Task UpdateAsync(Cliente cliente);
-    Task<bool> EmailExistsAsync(string email, int? excludeId = null);
+    Task<bool> EmailExistsAsync(string? email, int? excludeId = null);
 }

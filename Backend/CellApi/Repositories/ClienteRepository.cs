@@ -58,8 +58,10 @@ public class ClienteRepository : IClienteRepository
         await conn.ExecuteAsync(sql, c);
     }
 
-    public async Task<bool> EmailExistsAsync(string email, int? excludeId = null)
+    public async Task<bool> EmailExistsAsync(string? email, int? excludeId = null)
     {
+        if (string.IsNullOrWhiteSpace(email)) return false;
+
         using var conn = _db.CreateConnection();
         if (excludeId.HasValue)
             return await conn.ExecuteScalarAsync<bool>(
