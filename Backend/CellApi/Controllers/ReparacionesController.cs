@@ -194,11 +194,18 @@ public class ReparacionesController : ControllerBase
         var pdfBytes = await _pdf.GenerarOrdenReparacionPdfAsync(rep);
         var nombre   = $"Orden_{rep.NumeroOrden.Replace("/", "-")}.pdf";
         var asunto   = $"Orden de reparación {rep.NumeroOrden}";
-        var cuerpo   = $@"
+        var lineaPrecio = rep.Total.HasValue
+            ? $"<p><strong>Total a pagar:</strong> {rep.Total:F2} € (IVA incluido)</p>"
+            : rep.PrecioEstimado.HasValue
+                ? $"<p><strong>Presupuesto estimado:</strong> {rep.PrecioEstimado:F2} €</p>"
+                : "";
+
+        var cuerpo = $@"
             <p>Estimado/a {rep.ClienteNombreCompleto},</p>
             <p>Adjunto encontrará la orden de reparación <strong>{rep.NumeroOrden}</strong>
                correspondiente a su <strong>{rep.Dispositivo} {rep.Marca} {rep.Modelo}</strong>.</p>
             <p><strong>Descripción de la falla:</strong> {rep.DescripcionFalla}</p>
+            {lineaPrecio}
             <p>Cualquier consulta, no dude en contactarnos.</p>
             <p>Un saludo.</p>";
 
