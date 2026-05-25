@@ -28,10 +28,9 @@ public class CreateClienteDto
     [MaxLength(150)]
     public string? Apellidos { get; set; }
 
-    [Required(ErrorMessage = "El email es obligatorio")]
     [EmailAddress(ErrorMessage = "Formato de email no válido")]
     [MaxLength(200)]
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
 
     [MaxLength(20)]
     public string? Telefono { get; set; }
@@ -59,10 +58,9 @@ public class UpdateClienteDto
     [MaxLength(150)]
     public string? Apellidos { get; set; }
 
-    [Required(ErrorMessage = "El email es obligatorio")]
     [EmailAddress(ErrorMessage = "Formato de email no válido")]
     [MaxLength(200)]
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
 
     [MaxLength(20)]
     public string? Telefono { get; set; }
