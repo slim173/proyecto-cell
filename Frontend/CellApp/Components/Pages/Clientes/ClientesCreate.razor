@@ -26,10 +26,6 @@
                             <InputText class="form-control" @bind-Value="_dto.Apellidos" placeholder="Apellidos" />
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
-                            <InputText class="form-control" type="email" @bind-Value="_dto.Email" placeholder="email@ejemplo.es" />
-                        </div>
-                        <div class="col-md-6">
                             <label class="form-label fw-semibold">Teléfono</label>
                             <InputText class="form-control" @bind-Value="_dto.Telefono" placeholder="+34 600 000 000" />
                         </div>
@@ -82,9 +78,9 @@
 
     async Task Guardar()
     {
-        if (string.IsNullOrWhiteSpace(_dto.Nombre) || string.IsNullOrWhiteSpace(_dto.Email))
+        if (string.IsNullOrWhiteSpace(_dto.Nombre))
         {
-            _error = "Nombre y email son obligatorios."; return;
+            _error = "El nombre es obligatorio."; return;
         }
         _guardando = true; _error = string.Empty;
         try
