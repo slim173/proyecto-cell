@@ -159,7 +159,8 @@ public static class DbMigrator
             ("ticket_mostrar_qr", "true",                                             "Mostrar QR en tickets"),
             ("ticket_clausula_reparacion", clausulaRep,                              "Cláusula de reparación"),
             ("ticket_clausula_recogida",   "",                                        "Condiciones de recogida"),
-            ("empresa_url_publica",        "",                                        "URL pública para QR"),
+            ("empresa_url_publica",        "",                                        "URL backend para links WhatsApp"),
+            ("empresa_url_portal",         "",                                        "URL frontend para QR portal cliente"),
             ("smtp_from_name",    "doctor movil",                                     "Nombre remitente email"),
             ("smtp_from_email",   "doctormovil20@gmail.com",                         "Email remitente"),
             ("smtp_host",         "smtp.gmail.com",                                   "Servidor SMTP"),
@@ -223,6 +224,7 @@ public static class DbMigrator
             ["empresa_cp"]          = Environment.GetEnvironmentVariable("EMPRESA_CP"),
             ["empresa_email"]       = Environment.GetEnvironmentVariable("EMPRESA_EMAIL"),
             ["empresa_url_publica"]  = Environment.GetEnvironmentVariable("EMPRESA_URL_PUBLICA"),
+            ["empresa_url_portal"]   = Environment.GetEnvironmentVariable("EMPRESA_URL_PORTAL"),
             // Twilio — todas las credenciales solo via variable de entorno o UI Empresa
             ["twilio_account_sid"]  = Environment.GetEnvironmentVariable("TWILIO_ACCOUNT_SID"),
             ["twilio_auth_token"]   = Environment.GetEnvironmentVariable("TWILIO_AUTH_TOKEN"),

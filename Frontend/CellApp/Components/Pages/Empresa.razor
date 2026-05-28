@@ -286,16 +286,27 @@
                         </small>
                     </div>
 
-                    <!-- URL pública para QR digital -->
+                    <!-- URL portal cliente (QR en PDFs) -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="fas fa-qrcode me-1 text-primary"></i>URL portal cliente (QR en PDFs)
+                        </label>
+                        <input class="form-control" @bind="_dto.UrlPortal"
+                               placeholder="https://doctormovil.es" />
+                        <small class="text-muted">
+                            URL del <strong>frontend</strong>. Los QR de reparaciones y facturas llevarán al cliente
+                            a ver el estado en tiempo real. Ej: <code>https://doctormovil.es</code>
+                        </small>
+                    </div>
+                    <!-- URL pública backend (links WhatsApp) -->
                     <div class="mb-0">
                         <label class="form-label fw-semibold">
-                            <i class="fas fa-link me-1 text-primary"></i>URL pública (QR digital en todos los PDFs)
+                            <i class="fas fa-link me-1 text-secondary"></i>URL backend (links WhatsApp PDF)
                         </label>
                         <input class="form-control" @bind="_dto.UrlPublica"
-                               placeholder="https://mitienda.com" />
+                               placeholder="https://proyecto-cell-production-0215.up.railway.app" />
                         <small class="text-muted">
-                            Al configurar esta URL, facturas y tickets incluirán un QR que lleva al
-                            documento digital. Deja vacío para no incluir QR digital.
+                            URL del backend. Se usa para el link de descarga de PDF en mensajes de WhatsApp.
                         </small>
                     </div>
                 </div>
@@ -565,6 +576,7 @@
                     TwilioAccountSid  = _empresaOriginal.TwilioAccountSid,
                     TwilioWhatsappFrom= _empresaOriginal.TwilioWhatsappFrom,
                     TwilioContentSid  = _empresaOriginal.TwilioContentSid,
+                    UrlPortal         = _empresaOriginal.UrlPortal,
                     RecordatorioActivo= _empresaOriginal.RecordatorioActivo,
                     RecordatorioDias  = _empresaOriginal.RecordatorioDias,
                     TicketFormato      = _empresaOriginal.TicketFormato,

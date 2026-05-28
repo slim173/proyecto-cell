@@ -100,6 +100,7 @@ public class EmpresaDto
     public bool    TicketMostrarQr    { get; set; } = true;
     public string? LogoUrl            { get; set; }
     public string? UrlPublica         { get; set; }
+    public string? UrlPortal          { get; set; }
 }
 
 public class UpdateEmpresaDto
@@ -138,6 +139,7 @@ public class UpdateEmpresaDto
     public string? ClausulaRecogida   { get; set; }
     public bool    TicketMostrarQr    { get; set; } = true;
     public string? UrlPublica         { get; set; }
+    public string? UrlPortal          { get; set; }
 }
 
 // ── Respuesta estándar API ──────────────────────────────────────

@@ -35,7 +35,8 @@ public class ConfiguracionController : ControllerBase
         "recordatorio_activo", "recordatorio_dias",
         "ticket_formato", "ticket_clausula_reparacion", "ticket_clausula_recogida", "ticket_mostrar_qr",
         "empresa_logo",
-        "empresa_url_publica"
+        "empresa_url_publica",
+        "empresa_url_portal"
     ];
 
     [HttpGet("empresa")]
@@ -81,6 +82,7 @@ public class ConfiguracionController : ControllerBase
             ["ticket_clausula_recogida"]  = dto.ClausulaRecogida     ?? "",
             ["ticket_mostrar_qr"]         = dto.TicketMostrarQr.ToString().ToLower(),
             ["empresa_url_publica"]       = dto.UrlPublica       ?? "",
+            ["empresa_url_portal"]        = dto.UrlPortal        ?? "",
         };
 
         if (!string.IsNullOrWhiteSpace(dto.SmtpPassword))
@@ -225,6 +227,7 @@ public class ConfiguracionController : ControllerBase
             TicketMostrarQr    = cfg.GetValueOrDefault("ticket_mostrar_qr","true").Equals("true", StringComparison.OrdinalIgnoreCase),
             LogoUrl            = string.IsNullOrEmpty(logoRel) ? null : $"/{logoRel}",
             UrlPublica         = cfg.GetValueOrDefault("empresa_url_publica", ""),
+            UrlPortal          = cfg.GetValueOrDefault("empresa_url_portal",  ""),
         };
     }
 }
@@ -265,6 +268,7 @@ public class EmpresaDto
     public bool    TicketMostrarQr    { get; set; } = true;
     public string? LogoUrl            { get; set; }
     public string? UrlPublica         { get; set; }
+    public string? UrlPortal          { get; set; }
 }
 
 public class UpdateEmpresaDto
@@ -301,4 +305,5 @@ public class UpdateEmpresaDto
     public string? ClausulaRecogida   { get; set; }
     public bool    TicketMostrarQr    { get; set; } = true;
     public string? UrlPublica         { get; set; }
+    public string? UrlPortal          { get; set; }
 }

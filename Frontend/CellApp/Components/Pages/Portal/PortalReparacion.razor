@@ -1,0 +1,222 @@
+@page "/portal/reparacion/{Id:int}"
+@layout BlankLayout
+@inject HttpClient Http
+@inject IConfiguration Config
+
+<PageTitle>Estado de tu reparación</PageTitle>
+
+<div class="portal-wrap">
+    @if (_cargando)
+    {
+        <div class="portal-center">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-3 text-muted">Cargando estado...</p>
+        </div>
+    }
+    else if (_error != null)
+    {
+        <div class="portal-center">
+            <i class="fas fa-exclamation-circle fa-3x text-danger mb-3"></i>
+            <p class="text-danger fw-semibold">@_error</p>
+        </div>
+    }
+    else if (_datos != null)
+    {
+        <!-- Cabecera empresa -->
+        <div class="portal-header bg-dark text-white text-center py-3 px-4">
+            @if (!string.IsNullOrEmpty(_datos.EmpresaLogo))
+            {
+                <img src="@(_apiBase + _datos.EmpresaLogo)" alt="Logo" style="max-height:50px;max-width:160px;object-fit:contain;" class="mb-1" />
+            }
+            <div class="fw-bold fs-5">@_datos.EmpresaNombre</div>
+            @if (!string.IsNullOrEmpty(_datos.EmpresaTelefono))
+            {
+                <a href="tel:@_datos.EmpresaTelefono" class="text-white-50 small">
+                    <i class="fas fa-phone me-1"></i>@_datos.EmpresaTelefono
+                </a>
+            }
+        </div>
+
+        <!-- Número de orden -->
+        <div class="text-center py-3 px-4 border-bottom">
+            <div class="text-muted small text-uppercase fw-semibold">Orden de reparación</div>
+            <div class="fw-bold fs-3 text-primary">@_datos.NumeroOrden</div>
+            <div class="text-muted small">@_datos.FechaRecepcion.ToString("dd/MM/yyyy")</div>
+        </div>
+
+        <!-- Estado actual -->
+        <div class="text-center py-3 px-4">
+            <span class="badge rounded-pill fs-6 px-4 py-2 bg-@_datos.EstadoColor">
+                @EstadoIcono(_datos.Estado) @_datos.EstadoLabel
+            </span>
+        </div>
+
+        <!-- Barra de progreso -->
+        @if (_datos.Estado != "no_reparable")
+        {
+            <div class="px-4 pb-3">
+                <div class="portal-steps">
+                    @foreach (var (paso, label, icon) in _pasos)
+                    {
+                        var activo  = _datos.EstadoPaso == paso;
+                        var hecho   = _datos.EstadoPaso > paso;
+                        var cls     = hecho ? "done" : activo ? "active" : "pending";
+                        <div class="portal-step @cls">
+                            <div class="step-circle">
+                                @if (hecho) { <i class="fas fa-check"></i> }
+                                else { <span>@paso</span> }
+                            </div>
+                            <div class="step-label">@label</div>
+                        </div>
+                        @if (paso < 5) { <div class="step-line @(hecho ? "done" : "")"></div> }
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Dispositivo -->
+        <div class="portal-card mx-4 mb-3">
+            <div class="portal-card-title"><i class="fas fa-mobile-alt me-2"></i>Dispositivo</div>
+            <div class="fw-semibold">@_datos.Dispositivo @_datos.Marca @_datos.Modelo</div>
+            <div class="text-muted small mt-1">@_datos.DescripcionFalla</div>
+        </div>
+
+        <!-- Solución / trabajo realizado -->
+        @if (!string.IsNullOrEmpty(_datos.Solucion))
+        {
+            <div class="portal-card mx-4 mb-3">
+                <div class="portal-card-title"><i class="fas fa-tools me-2"></i>Trabajo realizado</div>
+                <div class="small">@_datos.Solucion</div>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(_datos.Observaciones))
+        {
+            <div class="portal-card mx-4 mb-3">
+                <div class="portal-card-title"><i class="fas fa-comment-alt me-2"></i>Observaciones</div>
+                <div class="small">@_datos.Observaciones</div>
+            </div>
+        }
+
+        <!-- Precio -->
+        @if (_datos.Total.HasValue || _datos.PrecioEstimado.HasValue)
+        {
+            <div class="portal-card mx-4 mb-3">
+                <div class="portal-card-title"><i class="fas fa-euro-sign me-2"></i>Precio (IVA incluido)</div>
+                @if (_datos.Total.HasValue)
+                {
+                    <div class="fw-bold fs-4 text-success">@_datos.Total.Value.ToString("N2") €</div>
+                }
+                else if (_datos.PrecioEstimado.HasValue)
+                {
+                    <div class="fw-semibold text-primary">@_datos.PrecioEstimado.Value.ToString("N2") € <span class="text-muted small">(estimado)</span></div>
+                }
+            </div>
+        }
+
+        <!-- Fecha entrega -->
+        @if (_datos.FechaEntregaReal.HasValue)
+        {
+            <div class="portal-card mx-4 mb-3">
+                <div class="portal-card-title"><i class="fas fa-calendar-check me-2"></i>Entregado el</div>
+                <div class="fw-semibold">@_datos.FechaEntregaReal.Value.ToString("dd/MM/yyyy")</div>
+            </div>
+        }
+        else if (_datos.FechaEstimadaEntrega.HasValue)
+        {
+            <div class="portal-card mx-4 mb-3">
+                <div class="portal-card-title"><i class="fas fa-calendar me-2"></i>Fecha estimada de entrega</div>
+                <div class="fw-semibold">@_datos.FechaEstimadaEntrega.Value.ToString("dd/MM/yyyy")</div>
+            </div>
+        }
+
+        <!-- CTA llamada -->
+        @if (!string.IsNullOrEmpty(_datos.EmpresaTelefono))
+        {
+            <div class="text-center px-4 pb-4 mt-2">
+                <a href="tel:@_datos.EmpresaTelefono" class="btn btn-success btn-lg w-100">
+                    <i class="fas fa-phone me-2"></i>Llamar a @_datos.EmpresaNombre
+                </a>
+            </div>
+        }
+
+        <div class="text-center pb-4 text-muted small">
+            Actualizado: @DateTime.Now.ToString("dd/MM/yyyy HH:mm")
+        </div>
+    }
+</div>
+
+<style>
+    body { background: #f4f6f9; margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .portal-wrap { max-width: 480px; margin: 0 auto; background: white; min-height: 100vh; }
+    .portal-center { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; padding: 2rem; }
+    .portal-header { background: #1a1a2e !important; }
+    .portal-card { background: #f8f9fa; border-radius: 12px; padding: 14px 16px; border: 1px solid #e9ecef; }
+    .portal-card-title { font-size: .75rem; font-weight: 700; text-transform: uppercase; color: #6c757d; letter-spacing: .05em; margin-bottom: 6px; }
+    /* Steps */
+    .portal-steps { display: flex; align-items: center; justify-content: center; gap: 0; padding: 8px 0; }
+    .portal-step { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .step-circle { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 700; }
+    .portal-step.done   .step-circle { background: #198754; color: white; }
+    .portal-step.active .step-circle { background: #0d6efd; color: white; }
+    .portal-step.pending .step-circle { background: #dee2e6; color: #6c757d; }
+    .step-label { font-size: .6rem; text-align: center; max-width: 52px; color: #6c757d; line-height: 1.2; }
+    .portal-step.active .step-label { color: #0d6efd; font-weight: 700; }
+    .portal-step.done   .step-label { color: #198754; }
+    .step-line { flex: 1; height: 2px; background: #dee2e6; margin: 0 2px; margin-bottom: 16px; }
+    .step-line.done { background: #198754; }
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    record DatosPortal(
+        string NumeroOrden, string Estado, string EstadoLabel, string EstadoColor, int EstadoPaso,
+        string Dispositivo, string Marca, string Modelo,
+        string DescripcionFalla, string? Solucion, string? Observaciones,
+        DateTime FechaRecepcion, DateTime? FechaEstimadaEntrega, DateTime? FechaEntregaReal,
+        decimal? PrecioEstimado, decimal? Total,
+        string EmpresaNombre, string EmpresaTelefono, string? EmpresaLogo);
+
+    DatosPortal? _datos;
+    bool   _cargando = true;
+    string? _error;
+    string  _apiBase  = string.Empty;
+
+    static readonly (int paso, string label, string icon)[] _pasos =
+    {
+        (1, "Recibido",    "📥"),
+        (2, "Diagnóstico", "🔍"),
+        (3, "Reparando",   "🔧"),
+        (4, "Listo",       "✅"),
+        (5, "Entregado",   "🎉"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _apiBase = (Config["ApiBaseUrl"] ?? "").TrimEnd('/');
+        try
+        {
+            _datos = await Http.GetFromJsonAsync<DatosPortal>($"api/portal/reparacion/{Id}");
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _error = "Reparación no encontrada.";
+        }
+        catch
+        {
+            _error = "No se pudo cargar la información. Inténtalo de nuevo.";
+        }
+        finally { _cargando = false; }
+    }
+
+    static string EstadoIcono(string e) => e switch
+    {
+        "recibido"      => "📥",
+        "diagnosticado" => "🔍",
+        "en_reparacion" => "🔧",
+        "reparado"      => "✅",
+        "entregado"     => "🎉",
+        "no_reparable"  => "❌",
+        _               => ""
+    };
+}

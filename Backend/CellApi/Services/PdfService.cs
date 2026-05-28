@@ -158,10 +158,10 @@ public class PdfService : IPdfService
                     });
 
                     // QR digital (si hay URL pública configurada)
-                    var urlPublicaF = config.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
+                    var urlPublicaF = config.GetValueOrDefault("empresa_url_portal", "").TrimEnd('/');
                     if (!string.IsNullOrEmpty(urlPublicaF))
                     {
-                        var qrUrlF = $"{urlPublicaF}/api/facturas/{factura.Id}/pdf";
+                        var qrUrlF = $"{urlPublicaF}/portal/factura/{factura.Id}";
                         var qrPngF = GenerarQrPng(qrUrlF, 150);
                         col.Item().PaddingTop(14).Row(r =>
                         {
@@ -199,7 +199,7 @@ public class PdfService : IPdfService
         float fsMed = fs + 1;
         float fsTiny= Math.Max(6f, fs - 1);
 
-        var urlPubFact = config.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
+        var urlPubFact = config.GetValueOrDefault("empresa_url_portal", "").TrimEnd('/');
         float altoFacturaMm = 45f
             + (logo != null ? 14f : 0f)
             + (!string.IsNullOrEmpty(empresaTel) ? 4f : 0f)
@@ -294,7 +294,7 @@ public class PdfService : IPdfService
                     // QR digital (si hay URL pública configurada)
                     if (!string.IsNullOrEmpty(urlPubFact))
                     {
-                        var qrUrlFT = $"{urlPubFact}/api/facturas/{factura.Id}/pdf";
+                        var qrUrlFT = $"{urlPubFact}/portal/factura/{factura.Id}";
                         var qrPngFT = GenerarQrPng(qrUrlFT, 120);
                         col.Item().PaddingTop(4).AlignCenter().Width(22, Unit.Millimetre).Image(qrPngFT);
                         col.Item().AlignCenter().Text("Ver factura digital").FontSize(fsTiny);
@@ -552,10 +552,10 @@ public class PdfService : IPdfService
                     // QR (URL digital si está configurada, o número de orden)
                     if (mostrarQr)
                     {
-                        var urlPublicaR = config.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
+                        var urlPublicaR = config.GetValueOrDefault("empresa_url_portal", "").TrimEnd('/');
                         var qrContentR  = string.IsNullOrEmpty(urlPublicaR)
                             ? rep.NumeroOrden
-                            : $"{urlPublicaR}/api/reparaciones/{rep.Id}/pdf";
+                            : $"{urlPublicaR}/portal/reparacion/{rep.Id}";
                         var qr = GenerarQrPng(qrContentR, 120);
                         col.Item().PaddingTop(8).AlignRight().Width(28, Unit.Millimetre).Image(qr);
                     }
@@ -581,9 +581,9 @@ public class PdfService : IPdfService
         float fsBig = fs + 2;
         float fsMed = fs + 1;
         float fsTiny= Math.Max(6f, fs - 1);
-        var urlPublicaRT = config.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
+        var urlPublicaRT = config.GetValueOrDefault("empresa_url_portal", "").TrimEnd('/');
         var qrContentRT  = !string.IsNullOrEmpty(urlPublicaRT)
-            ? $"{urlPublicaRT}/api/reparaciones/{rep.Id}/pdf"
+            ? $"{urlPublicaRT}/portal/reparacion/{rep.Id}"
             : rep.NumeroOrden;
         byte[]? qrPng = mostrarQr ? GenerarQrPng(qrContentRT, 160) : null;
 
