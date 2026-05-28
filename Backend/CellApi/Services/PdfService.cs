@@ -158,7 +158,7 @@ public class PdfService : IPdfService
                     });
 
                     // QR digital (si hay URL pública configurada)
-                    var urlPublicaF = config.GetValueOrDefault("empresa_url_portal", "").TrimEnd('/');
+                    var urlPublicaF = config.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
                     if (!string.IsNullOrEmpty(urlPublicaF))
                     {
                         var qrUrlF = $"{urlPublicaF}/portal/factura/{factura.Id}";
@@ -199,7 +199,7 @@ public class PdfService : IPdfService
         float fsMed = fs + 1;
         float fsTiny= Math.Max(6f, fs - 1);
 
-        var urlPubFact = config.GetValueOrDefault("empresa_url_portal", "").TrimEnd('/');
+        var urlPubFact = config.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
         float altoFacturaMm = 45f
             + (logo != null ? 14f : 0f)
             + (!string.IsNullOrEmpty(empresaTel) ? 4f : 0f)
@@ -552,7 +552,7 @@ public class PdfService : IPdfService
                     // QR (URL digital si está configurada, o número de orden)
                     if (mostrarQr)
                     {
-                        var urlPublicaR = config.GetValueOrDefault("empresa_url_portal", "").TrimEnd('/');
+                        var urlPublicaR = config.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
                         var qrContentR  = string.IsNullOrEmpty(urlPublicaR)
                             ? rep.NumeroOrden
                             : $"{urlPublicaR}/portal/reparacion/{rep.Id}";
@@ -581,7 +581,7 @@ public class PdfService : IPdfService
         float fsBig = fs + 2;
         float fsMed = fs + 1;
         float fsTiny= Math.Max(6f, fs - 1);
-        var urlPublicaRT = config.GetValueOrDefault("empresa_url_portal", "").TrimEnd('/');
+        var urlPublicaRT = config.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
         var qrContentRT  = !string.IsNullOrEmpty(urlPublicaRT)
             ? $"{urlPublicaRT}/portal/reparacion/{rep.Id}"
             : rep.NumeroOrden;
