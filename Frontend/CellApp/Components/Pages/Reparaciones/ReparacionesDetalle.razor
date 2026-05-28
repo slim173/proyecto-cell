@@ -1003,12 +1003,15 @@
         if (string.IsNullOrEmpty(template) || _rep == null) return string.Empty;
         var urlPublica  = _empresa?.UrlPublica?.TrimEnd('/');
         var linkTicket  = string.IsNullOrEmpty(urlPublica) ? "" : $"{urlPublica}/api/reparaciones/{Id}/pdf";
+        var precio = (_rep.Total ?? _rep.PrecioEstimado)?.ToString("N2") ?? "";
         return template
             .Replace("{nombre}",      _rep.ClienteNombreCompleto ?? "")
             .Replace("{dispositivo}", $"{_rep.Marca} {_rep.Modelo}".Trim())
             .Replace("{orden}",       _rep.NumeroOrden ?? "")
             .Replace("{tienda}",      _empresa?.Nombre ?? "CellShop")
             .Replace("{total}",       _rep.Total?.ToString("N2") ?? "")
+            .Replace("{presupuesto}", _rep.PrecioEstimado?.ToString("N2") ?? "")
+            .Replace("{precio}",      precio)
             .Replace("{estado}",      EstadoLabel(_rep.Estado))
             .Replace("{link_ticket}", linkTicket);
     }

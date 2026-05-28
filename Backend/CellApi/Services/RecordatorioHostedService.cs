@@ -73,9 +73,11 @@ public class RecordatorioHostedService : BackgroundService
                     await email.SendAsync(cl.Email, asunto, cuerpo,
                         "recordatorio_recogida", "reparacion", rep.Id);
 
+                var importeWa = rep.Total.HasValue      ? $". Total: {rep.Total:F2}€"
+                             : rep.PrecioEstimado.HasValue ? $". Presupuesto: {rep.PrecioEstimado:F2}€"
+                             : "";
                 var msg = $"Hola {cl.Nombre}, su {rep.Dispositivo} {rep.Marca} está listo para recoger " +
-                          $"(Orden: {rep.NumeroOrden})" +
-                          (rep.Total.HasValue ? $". Total: {rep.Total:F2}€." : ".") +
+                          $"(Orden: {rep.NumeroOrden}){importeWa}." +
                           $" — {empresa}" +
                           (string.IsNullOrEmpty(tel) ? "" : $" {tel}");
 
