@@ -84,6 +84,19 @@ public class FacturaRepository : IFacturaRepository
             new { PdfPath = pdfPath, Id = id });
     }
 
+    public async Task UpdateTotalesAsync(int id, decimal baseImp, decimal pct, decimal iva, decimal total)
+    {
+        using var conn = _db.CreateConnection();
+        await conn.ExecuteAsync(@"
+            UPDATE facturas
+               SET base_imponible  = @BaseImp,
+                   porcentaje_iva  = @Pct,
+                   importe_iva     = @Iva,
+                   total           = @Total
+             WHERE id = @Id AND anulada = false",
+            new { BaseImp = baseImp, Pct = pct, Iva = iva, Total = total, Id = id });
+    }
+
     public async Task AnularAsync(int id, string motivo)
     {
         using var conn = _db.CreateConnection();

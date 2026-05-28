@@ -10,5 +10,6 @@ public interface IFacturaRepository
     Task<Factura?> GetByReparacionIdAsync(int reparacionId);
     Task<int> CreateAsync(Factura factura);
     Task UpdatePdfPathAsync(int id, string pdfPath);
+    Task UpdateTotalesAsync(int id, decimal baseImp, decimal pct, decimal iva, decimal total);
     Task AnularAsync(int id, string motivo);
 }

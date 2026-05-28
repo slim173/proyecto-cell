@@ -153,57 +153,76 @@ public class ReparacionService : IReparacionService
         if (cliente != null)
             _ = EnviarEmailCambioEstado(rep, cliente, dto.Estado);
 
-        // Cuando se entrega: PrecioFinal ES el PVP (IVA ya incluido)
-        if (dto.Estado == "entregado" && dto.PrecioFinal.HasValue)
+        // Generar factura automática al finalizar (reparado o entregado) si hay precio final
+        // rep.PrecioFinal ya tiene el valor guardado (dto ?? anterior)
+        var estadoFinaliza = dto.Estado == "reparado" || dto.Estado == "entregado";
+        if (estadoFinaliza && rep.PrecioFinal.HasValue)
         {
             const decimal pct = 21m;
-            var total   = Math.Round(dto.PrecioFinal.Value, 2);
+            var total   = Math.Round(rep.PrecioFinal.Value, 2);
             var baseImp = Math.Round(total / (1m + pct / 100m), 2);
             var iva     = Math.Round(total - baseImp, 2);
 
-            await _repo.ActualizarTotalesAsync(id, baseImp, pct, iva, total, dto.PrecioFinal.Value);
+            await _repo.ActualizarTotalesAsync(id, baseImp, pct, iva, total, rep.PrecioFinal.Value);
 
-            var factura = new Factura
+            // Crear factura solo si todavía no existe una para esta reparación
+            var facturaExistente = await _facturaRepo.GetByReparacionIdAsync(id);
+            if (facturaExistente == null)
             {
-                ReparacionId   = id,
-                ClienteId      = rep.ClienteId,
-                FechaEmision   = DateTime.Today,
-                BaseImponible  = baseImp,
-                PorcentajeIva  = pct,
-                ImporteIva     = iva,
-                Total          = total,
-                ClienteNombre  = cliente?.Nombre,
-                ClienteApellidos = cliente?.Apellidos,
-                ClienteEmail   = cliente?.Email,
-                ClienteNif     = cliente?.Nif,
-                ClienteDireccion = cliente?.Direccion
-            };
-
-            var facturaId = await _facturaRepo.CreateAsync(factura);
-            factura.Id = facturaId;
-
-            var lineas = rep.Detalles.Select(d => new FacturaLineaDto
-            {
-                Descripcion    = d.Descripcion,
-                Cantidad       = d.Cantidad,
-                PrecioUnitario = d.PrecioUnitario,
-                Subtotal       = d.Subtotal
-            }).ToList();
-
-            if (!lineas.Any())
-                lineas.Add(new FacturaLineaDto
+                var factura = new Factura
                 {
-                    Descripcion    = $"Reparación {rep.Dispositivo} {rep.Marca} {rep.Modelo}",
-                    Cantidad       = 1,
-                    PrecioUnitario = baseImp,   // base s/IVA; el PDF muestra PVP = base × ivaFactor
-                    Subtotal       = baseImp
-                });
+                    ReparacionId     = id,
+                    ClienteId        = rep.ClienteId,
+                    FechaEmision     = DateTime.Today,
+                    BaseImponible    = baseImp,
+                    PorcentajeIva    = pct,
+                    ImporteIva       = iva,
+                    Total            = total,
+                    ClienteNombre    = cliente?.Nombre,
+                    ClienteApellidos = cliente?.Apellidos,
+                    ClienteEmail     = cliente?.Email,
+                    ClienteNif       = cliente?.Nif,
+                    ClienteDireccion = cliente?.Direccion
+                };
 
-            var facturaDto = _mapper.Map<FacturaDto>(factura);
-            facturaDto.Lineas = lineas;
+                var facturaId = await _facturaRepo.CreateAsync(factura);
+                factura.Id = facturaId;
 
-            var pdfPath = await _pdfService.GenerarFacturaPdfAsync(facturaDto);
-            await _facturaRepo.UpdatePdfPathAsync(facturaId, pdfPath);
+                // Descripción: detalles si los hay, si no Solucion o DescripcionFalla
+                var lineas = rep.Detalles.Select(d => new FacturaLineaDto
+                {
+                    Descripcion    = d.Descripcion,
+                    Cantidad       = d.Cantidad,
+                    PrecioUnitario = d.PrecioUnitario,
+                    Subtotal       = d.Subtotal
+                }).ToList();
+
+                if (!lineas.Any())
+                {
+                    var trabajo = !string.IsNullOrWhiteSpace(rep.Solucion)
+                        ? rep.Solucion
+                        : rep.DescripcionFalla;
+                    lineas.Add(new FacturaLineaDto
+                    {
+                        Descripcion    = $"Reparación {rep.Dispositivo} {rep.Marca} {rep.Modelo} — {trabajo}".Trim(),
+                        Cantidad       = 1,
+                        PrecioUnitario = baseImp,
+                        Subtotal       = baseImp
+                    });
+                }
+
+                var facturaDto = _mapper.Map<FacturaDto>(factura);
+                facturaDto.Lineas = lineas;
+
+                var pdfPath = await _pdfService.GenerarFacturaPdfAsync(facturaDto);
+                await _facturaRepo.UpdatePdfPathAsync(facturaId, pdfPath);
+            }
+            else
+            {
+                // Ya existe factura — actualizar totales por si cambió el precio
+                await _facturaRepo.UpdateTotalesAsync(
+                    facturaExistente.Id, baseImp, pct, iva, total);
+            }
         }
 
         var updated = await _repo.GetByIdAsync(id);
