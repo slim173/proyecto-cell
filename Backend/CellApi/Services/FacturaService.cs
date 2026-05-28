@@ -133,12 +133,16 @@ public class FacturaService : IFacturaService
                     }).ToList();
                 }
 
-                // Sin detalles: línea genérica de reparación
+                // Sin detalles: descripción con lo que se ha hecho
+                var trabajoRealizado = !string.IsNullOrWhiteSpace(rep.Solucion)
+                    ? rep.Solucion
+                    : rep.DescripcionFalla;
+                var descLinea = $"Reparación {rep.Dispositivo} {rep.Marca} {rep.Modelo} — {trabajoRealizado}".Trim(' ', '—', ' ');
                 return new List<FacturaLineaDto>
                 {
                     new FacturaLineaDto
                     {
-                        Descripcion    = $"Reparación {rep.Dispositivo} {rep.Marca} {rep.Modelo}".Trim(),
+                        Descripcion    = descLinea,
                         Cantidad       = 1,
                         PrecioUnitario = factura.BaseImponible,
                         Subtotal       = factura.BaseImponible
