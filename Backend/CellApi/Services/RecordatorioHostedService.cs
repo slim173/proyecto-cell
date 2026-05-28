@@ -47,8 +47,9 @@ public class RecordatorioHostedService : BackgroundService
         if (!int.TryParse(cfg.GetValueOrDefault("recordatorio_dias", "3"), out var dias))
             dias = 3;
 
-        var empresa = cfg.GetValueOrDefault("empresa_nombre", "CellShop");
-        var tel     = cfg.GetValueOrDefault("empresa_telefono", "");
+        var empresa    = cfg.GetValueOrDefault("empresa_nombre",   "CellShop");
+        var tel        = cfg.GetValueOrDefault("empresa_telefono", "");
+        var urlPublica = cfg.GetValueOrDefault("empresa_url_publica", "").TrimEnd('/');
 
         var pendientes = await repo.GetReparadasSinRecogerAsync(dias);
         foreach (var rep in pendientes)
@@ -76,10 +77,12 @@ public class RecordatorioHostedService : BackgroundService
                 var importeWa = rep.Total.HasValue      ? $". Total: {rep.Total:F2}€"
                              : rep.PrecioEstimado.HasValue ? $". Presupuesto: {rep.PrecioEstimado:F2}€"
                              : "";
+                var linkPortal = string.IsNullOrEmpty(urlPublica) ? "" : $"\n🔗 Ver estado: {urlPublica}/portal/reparacion/{rep.Id}";
                 var msg = $"Hola {cl.Nombre}, su {rep.Dispositivo} {rep.Marca} está listo para recoger " +
                           $"(Orden: {rep.NumeroOrden}){importeWa}." +
                           $" — {empresa}" +
-                          (string.IsNullOrEmpty(tel) ? "" : $" {tel}");
+                          (string.IsNullOrEmpty(tel) ? "" : $" {tel}") +
+                          linkPortal;
 
                 if (!string.IsNullOrEmpty(cl.Telefono))
                     await wa.SendAsync(cl.Telefono, msg);

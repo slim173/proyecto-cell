@@ -1003,6 +1003,7 @@
         if (string.IsNullOrEmpty(template) || _rep == null) return string.Empty;
         var urlPublica  = _empresa?.UrlPublica?.TrimEnd('/');
         var linkTicket  = string.IsNullOrEmpty(urlPublica) ? "" : $"{urlPublica}/api/reparaciones/{Id}/pdf";
+        var linkPortal  = string.IsNullOrEmpty(urlPublica) ? "" : $"{urlPublica}/portal/reparacion/{Id}";
         var precio = (_rep.Total ?? _rep.PrecioEstimado)?.ToString("N2") ?? "";
         return template
             .Replace("{nombre}",      _rep.ClienteNombreCompleto ?? "")
@@ -1013,7 +1014,8 @@
             .Replace("{presupuesto}", _rep.PrecioEstimado?.ToString("N2") ?? "")
             .Replace("{precio}",      precio)
             .Replace("{estado}",      EstadoLabel(_rep.Estado))
-            .Replace("{link_ticket}", linkTicket);
+            .Replace("{link_ticket}", linkTicket)
+            .Replace("{link_portal}", linkPortal);
     }
 
     string RepPdfUrl(string path = "") =>

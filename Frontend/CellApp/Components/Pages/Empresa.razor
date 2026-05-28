@@ -474,13 +474,14 @@
             <p class="text-muted small mb-3">
                 Variables disponibles:
                 <code>{nombre}</code> <code>{dispositivo}</code> <code>{orden}</code>
-                <code>{tienda}</code> <code>{total}</code> <code>{estado}</code>
-                <code>{link_ticket}</code>
+                <code>{tienda}</code> <code>{total}</code> <code>{precio}</code> <code>{estado}</code>
+                <code>{link_ticket}</code> <code>{link_portal}</code>
             </p>
             <div class="alert alert-info py-2 small">
                 <i class="fas fa-info-circle me-1"></i>
-                <strong>{link_ticket}</strong> se sustituye por el enlace directo al PDF digital.
-                Solo aparece si configuras la <em>URL pública</em> en «Configuración de impresión» (arriba).
+                <strong>{link_portal}</strong> enlace al estado de la reparación en tiempo real (recomendado).
+                <strong>{link_ticket}</strong> enlace directo al PDF.
+                Ambos requieren configurar la <em>URL pública</em> en «Configuración de impresión» (arriba).
             </div>
             <div class="mb-3">
                 <label class="form-label fw-semibold">
