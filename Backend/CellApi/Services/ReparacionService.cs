@@ -83,7 +83,7 @@ public class ReparacionService : IReparacionService
             <p>Su número de orden es: <strong>{reparacion.NumeroOrden}</strong></p>
             <p><strong>Dispositivo:</strong> {reparacion.Dispositivo} {reparacion.Marca} {reparacion.Modelo}</p>
             <p><strong>Descripción de la falla:</strong> {reparacion.DescripcionFalla}</p>
-            {(reparacion.PrecioEstimado.HasValue ? $"<p><strong>Precio estimado:</strong> {reparacion.PrecioEstimado:F2} € + IVA</p>" : "")}
+            {(reparacion.PrecioEstimado.HasValue ? $"<p><strong>Presupuesto (IVA incluido):</strong> {reparacion.PrecioEstimado:F2} €</p>" : "")}
             {(reparacion.FechaEstimadaEntrega.HasValue ? $"<p><strong>Fecha estimada de entrega:</strong> {reparacion.FechaEstimadaEntrega:dd/MM/yyyy}</p>" : "")}
             <p>Le mantendremos informado sobre el estado de su reparación.</p>
             <p>Un saludo,<br/>CellShop</p>";
@@ -312,7 +312,7 @@ public class ReparacionService : IReparacionService
                 cuerpo = $@"
                     <h2>Diagnóstico completado, {cliente.Nombre}</h2>
                     <p>Hemos terminado el diagnóstico de su <strong>{rep.Dispositivo} {rep.Marca} {rep.Modelo}</strong>.</p>
-                    {(rep.PrecioEstimado.HasValue ? $"<p><strong>Precio estimado:</strong> {rep.PrecioEstimado:F2} € + IVA (21%)</p>" : "")}
+                    {(rep.PrecioEstimado.HasValue ? $"<p><strong>Presupuesto (IVA incluido):</strong> {rep.PrecioEstimado:F2} €</p>" : "")}
                     {(rep.ObservacionesTecnico != null ? $"<p><strong>Observaciones:</strong> {rep.ObservacionesTecnico}</p>" : "")}
                     <p>Un saludo,<br/>CellShop</p>";
                 break;
@@ -322,7 +322,7 @@ public class ReparacionService : IReparacionService
                 cuerpo = $@"
                     <h2>¡Su dispositivo está reparado, {cliente.Nombre}!</h2>
                     <p>Su <strong>{rep.Dispositivo} {rep.Marca} {rep.Modelo}</strong> ya está listo para recoger.</p>
-                    {(rep.PrecioFinal.HasValue ? $"<p><strong>Precio final:</strong> {rep.PrecioFinal:F2} € + IVA (21%)</p>" : "")}
+                    {(rep.PrecioFinal.HasValue ? $"<p><strong>Total a pagar (IVA incluido):</strong> {rep.PrecioFinal:F2} €</p>" : "")}
                     <p>Puede pasar a recogerlo en nuestras instalaciones en horario comercial.</p>
                     <p>Un saludo,<br/>CellShop</p>";
                 break;
